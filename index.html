@@ -3,413 +3,746 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Quỹ Lớp Realtime</title>
-    <!-- Tailwind CSS CDN -->
+    <title>Quản Lý Quỹ Lớp Thông Minh</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .tab-btn.active {
-            border-bottom: 3px solid #2563eb;
-            color: #2563eb;
-            font-weight: 600;
+        @media print {
+            body * { visibility: hidden; }
+            #printable-area, #printable-area * { visibility: visible; }
+            #printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none !important; }
         }
     </style>
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800 font-sans pb-10">
+<body class="bg-gray-100 font-sans">
+    <div id="app" class="max-w-7xl mx-auto p-4 md:p-6">
+        
+        <!-- Header Dashboard -->
+        <header class="flex justify-between items-center bg-blue-600 text-white p-6 rounded-lg shadow-md mb-6">
+            <div>
+                <h1 class="text-2xl font-bold">Quản Lý Quỹ Lớp Thông Minh</h1>
+                <p class="text-blue-100 text-sm">Hệ thống đồng bộ dữ liệu Realtime đám mây</p>
+            </div>
+            <div class="text-right">
+                <span class="block text-xs uppercase text-blue-200">Số Dư Quỹ Hiện Tại</span>
+                <span class="text-3xl font-extrabold">[[ formatMoney(summary.balance) ]]đ</span>
+            </div>
+        </header>
 
-    <!-- Header -->
-    <header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-50">
-        <div class="max-w-4xl mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold flex items-center gap-2">
-                💰 Quản Lý Quỹ Lớp Realtime
-            </h1>
-            <span id="connection-status" class="text-xs bg-blue-700 px-2.5 py-1 rounded-full border border-blue-400">
-                🔄 Đang kết nối...
-            </span>
+        <!-- Thống kê tổng quan -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white p-4 rounded-lg shadow border-l-4 border-green-500 flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-xs font-medium">Tổng Thu Quỹ Học Sinh</p>
+                    <p class="text-lg font-bold text-green-600">+[[ formatMoney(totalCampaignCollected) ]]đ</p>
+                </div>
+                <i class="fa-solid fa-users text-green-500 text-2xl"></i>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow border-l-4 border-emerald-500 flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-xs font-medium">Thu Ngoài (Thưởng/Tài trợ)</p>
+                    <p class="text-lg font-bold text-emerald-600">+[[ formatMoney(totalOtherIn) ]]đ</p>
+                </div>
+                <i class="fa-solid fa-hand-holding-dollar text-emerald-500 text-2xl"></i>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow border-l-4 border-red-500 flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-xs font-medium">Tổng Chi Tiêu</p>
+                    <p class="text-lg font-bold text-red-600">-[[ formatMoney(summary.total_out) ]]đ</p>
+                </div>
+                <i class="fa-solid fa-receipt text-red-500 text-2xl"></i>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500 flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-xs font-medium">Sĩ Số Lớp Hiện Tại</p>
+                    <p class="text-lg font-bold text-blue-600">[[ sortedMembers.length ]] Học sinh</p>
+                </div>
+                <i class="fa-solid fa-user-graduate text-blue-500 text-2xl"></i>
+            </div>
         </div>
-    </header>
 
-    <main class="max-w-4xl mx-auto mt-6 px-4 space-y-6">
-
-        <!-- Tab Navigation -->
-        <div class="flex border-b border-gray-300 bg-white rounded-t-lg shadow-sm px-4">
-            <button onclick="switchTab('dot-thu')" id="tab-dot-thu" class="tab-btn active py-3 px-6 text-sm sm:text-base focus:outline-none transition">
-                📌 Các Đợt Thu Quỹ
+        <!-- Navigation Tabs -->
+        <div class="flex border-b border-gray-300 mb-6 bg-white rounded-t-lg overflow-hidden shadow-sm">
+            <button @click="activeTab = 'members'" :class="{'bg-blue-50 text-blue-600 border-b-2 border-blue-600 font-bold': activeTab==='members'}" class="px-5 py-3 text-gray-600 hover:bg-gray-50 text-sm">
+                <i class="fa-solid fa-user-graduate mr-2"></i>Thành Viên Lớp
             </button>
-            <button onclick="switchTab('chi-tieu')" id="tab-chi-tieu" class="tab-btn py-3 px-6 text-sm sm:text-base focus:outline-none transition">
-                💸 Lịch Sử Chi Tiêu
+            <button @click="activeTab = 'campaigns'" :class="{'bg-blue-50 text-blue-600 border-b-2 border-blue-600 font-bold': activeTab==='campaigns'}" class="px-5 py-3 text-gray-600 hover:bg-gray-50 text-sm">
+                <i class="fa-solid fa-hand-holding-dollar mr-2"></i>Theo Dõi Thu Quỹ
+            </button>
+            <button @click="activeTab = 'transactions'" :class="{'bg-blue-50 text-blue-600 border-b-2 border-blue-600 font-bold': activeTab==='transactions'}" class="px-5 py-3 text-gray-600 hover:bg-gray-50 text-sm">
+                <i class="fa-solid fa-list-check mr-2"></i>Thu Ngoài & Chi Tiêu
+            </button>
+            <button @click="activeTab = 'invoice'" :class="{'bg-blue-50 text-blue-600 border-b-2 border-blue-600 font-bold': activeTab==='invoice'}" class="px-5 py-3 text-gray-600 hover:bg-gray-50 text-sm">
+                <i class="fa-solid fa-print mr-2"></i>In Hóa Đơn / Báo Cáo
             </button>
         </div>
 
-        <!-- TAB 1: ĐỢT THU QUỸ -->
-        <section id="content-dot-thu" class="space-y-6">
-            <!-- Form Tạo Đợt Thu Mới -->
-            <div class="bg-white p-5 rounded-b-lg rounded-tr-lg shadow-sm border border-gray-200">
-                <h2 class="text-base font-semibold mb-3 text-slate-700 flex items-center gap-2">
-                    ➕ Tạo Đợt Thu Mới
-                </h2>
-                <form id="form-create-collection" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <input type="text" id="collection-title" placeholder="Tên đợt thu (VD: Quỹ đợt 1)" required
-                        class="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <input type="number" id="collection-amount" placeholder="Số tiền mỗi HS (VNĐ)" required min="0" step="1000"
-                        class="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md px-4 py-2 transition shadow-sm">
-                        Tạo Đợt Thu
+        <!-- TAB 1: DANH SÁCH THÀNH VIÊN -->
+        <div v-if="activeTab === 'members'" class="bg-white p-6 rounded-lg shadow">
+            <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+                <h2 class="text-lg font-bold text-gray-700">Danh Sách Thành Viên Lớp (Sắp xếp theo Tên A-Z)</h2>
+                
+                <div class="flex flex-wrap gap-2">
+                    <label class="bg-emerald-600 text-white px-3 py-2 rounded shadow hover:bg-emerald-700 text-xs font-semibold cursor-pointer flex items-center gap-1">
+                        <i class="fa-solid fa-file-excel"></i> Nhập từ Excel
+                        <input type="file" ref="excelInput" accept=".xlsx, .xls, .csv" @change="importExcel" class="hidden">
+                    </label>
+
+                    <button v-if="selectedMemberIds.length > 0" @click="bulkDeleteMembers" class="bg-red-600 text-white px-3 py-2 rounded shadow hover:bg-red-700 text-xs font-semibold flex items-center gap-1">
+                        <i class="fa-solid fa-trash-can"></i> Xóa chọn ([[ selectedMemberIds.length ]])
                     </button>
-                </form>
-            </div>
 
-            <!-- Danh Sách Đợt Thu Thu Gọn (Tabs) -->
-            <div id="collections-tabs" class="flex gap-2 overflow-x-auto pb-2">
-                <!-- Tab đợt thu sẽ render ở đây -->
-            </div>
-
-            <!-- Khung Hiển Thị Đợt Thu Được Chọn -->
-            <div id="collections-list" class="space-y-6">
-                <p class="text-center text-gray-500 py-8 bg-white rounded-lg border">Chưa có đợt thu nào được tạo.</p>
-            </div>
-        </section>
-
-        <!-- TAB 2: QUẢN LÝ CHI TIÊU -->
-        <section id="content-chi-tieu" class="hidden space-y-6">
-            <!-- Form Thêm Chi Tiêu -->
-            <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-                <h2 class="text-base font-semibold mb-3 text-slate-700 flex items-center gap-2">
-                    ➕ Ghi Nhận Chi Tiêu Quỹ
-                </h2>
-                <form id="form-add-expense" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <input type="text" id="expense-title" placeholder="Nội dung chi (VD: Mua phấn, dọn dẹp...)" required
-                        class="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <input type="number" id="expense-amount" placeholder="Số tiền chi (VNĐ)" required min="0" step="1000"
-                        class="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <button type="submit"
-                        class="bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md px-4 py-2 transition shadow-sm">
-                        Lưu Chi Tiêu
+                    <button @click="openMemberModal()" class="bg-blue-600 text-white px-3 py-2 rounded shadow hover:bg-blue-700 text-xs font-semibold flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> Thêm Học Sinh
                     </button>
-                </form>
-            </div>
-
-            <!-- Lịch Sử Chi Tiêu -->
-            <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-                <h3 class="font-semibold text-slate-700 mb-4">Danh Sách Các Khoản Chi</h3>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm text-left">
-                        <thead class="bg-slate-50 text-slate-600 border-b">
-                            <tr>
-                                <th class="p-3">Nội Dung Chi</th>
-                                <th class="p-3 text-right">Số Tiền</th>
-                                <th class="p-3 text-center">Thao Tác</th>
-                            </tr>
-                        </thead>
-                        <tbody id="expenses-table-body">
-                            <tr>
-                                <td colspan="3" class="text-center py-4 text-gray-400">Chưa có khoản chi nào.</td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
             </div>
-        </section>
 
-    </main>
-
-    <!-- Script Xử Lý Realtime Firebase -->
-    <script>
-        // Cấu hình Firebase Realtime Database
-        const firebaseConfig = {
-            databaseURL: "https://quylop-default-rtdb.firebaseio.com"
-        };
-
-        // Khởi tạo Firebase
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        const db = firebase.database();
-
-        // Trạng thái kết nối
-        db.ref(".info/connected").on("value", (snap) => {
-            const statusEl = document.getElementById("connection-status");
-            if (snap.val() === true) {
-                statusEl.innerText = "🟢 Đã kết nối Realtime";
-                statusEl.className = "text-xs bg-green-700 px-2.5 py-1 rounded-full border border-green-400";
-            } else {
-                statusEl.innerText = "🔴 Mất kết nối";
-                statusEl.className = "text-xs bg-red-700 px-2.5 py-1 rounded-full border border-red-400";
-            }
-        });
-
-        // Biến toàn cục
-        let globalCollections = {};
-        let activeCollectionId = null;
-        let defaultStudents = [];
-
-        // Chuyển Tab
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-
-            if (tabName === 'dot-thu') {
-                document.getElementById('content-dot-thu').classList.remove('hidden');
-                document.getElementById('content-chi-tieu').classList.add('hidden');
-            } else {
-                document.getElementById('content-dot-thu').classList.add('hidden');
-                document.getElementById('content-chi-tieu').classList.remove('hidden');
-            }
-        }
-
-        // 1. Tạo Đợt Thu Mới
-        document.getElementById('form-create-collection').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const title = document.getElementById('collection-title').value.trim();
-            const amount = parseInt(document.getElementById('collection-amount').value);
-
-            if (!title || isNaN(amount)) return;
-
-            const newRef = db.ref('collections').push();
-            
-            // Khởi tạo danh sách học sinh mặc định nếu có
-            let initialStudents = {};
-            if (defaultStudents.length > 0) {
-                defaultStudents.forEach(st => {
-                    initialStudents[st.id] = { name: st.name, paid: false };
-                });
-            }
-
-            newRef.set({
-                title: title,
-                amountPerStudent: amount,
-                createdAt: firebase.database.ServerValue.TIMESTAMP,
-                students: initialStudents
-            }).then(() => {
-                document.getElementById('collection-title').value = '';
-                document.getElementById('collection-amount').value = '';
-                activeCollectionId = newRef.key; // Tự chuyển sang đợt mới tạo
-            });
-        });
-
-        // 2. Lắng nghe Danh Sách Đợt Thu từ Firebase
-        db.ref('collections').on('value', (snapshot) => {
-            globalCollections = snapshot.val() || {};
-            renderCollectionsNavAndContent();
-        });
-
-        // Lắng nghe danh sách học sinh mặc định (nếu có lưu chung)
-        db.ref('default_students').on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                defaultStudents = Object.keys(data).map(k => ({ id: k, name: data[k].name }));
-            }
-        });
-
-        // Render Tabs Chọn Đợt Thu & Nội Dung Chi Tiết
-        function renderCollectionsNavAndContent() {
-            const navContainer = document.getElementById('collections-tabs');
-            const contentContainer = document.getElementById('collections-list');
-
-            const keys = Object.keys(globalCollections);
-
-            if (keys.length === 0) {
-                navContainer.innerHTML = '';
-                contentContainer.innerHTML = `<p class="text-center text-gray-500 py-8 bg-white rounded-lg border">Chưa có đợt thu nào được tạo.</p>`;
-                return;
-            }
-
-            // Chọn đợt thu mới nhất nếu chưa chọn
-            if (!activeCollectionId || !globalCollections[activeCollectionId]) {
-                activeCollectionId = keys[keys.length - 1];
-            }
-
-            // 1. Render Menu Chọn Đợt Thu (Tách riêng biệt các đợt)
-            let navHtml = '';
-            keys.reverse().forEach(id => {
-                const item = globalCollections[id];
-                const isActive = id === activeCollectionId;
-                const activeClass = isActive 
-                    ? 'bg-blue-600 text-white font-medium shadow-sm' 
-                    : 'bg-white text-slate-700 hover:bg-slate-200 border border-gray-300';
-
-                navHtml += `
-                    <button onclick="selectCollection('${id}')" class="px-4 py-2 rounded-lg text-sm whitespace-nowrap transition flex items-center gap-2 ${activeClass}">
-                        📁 ${item.title}
-                    </button>
-                `;
-            });
-            navContainer.innerHTML = navHtml;
-
-            // 2. Render Nội Dung Của Đợt Thu Được Chọn
-            const currentItem = globalCollections[activeCollectionId];
-            if (!currentItem) return;
-
-            const students = currentItem.students || {};
-            const studentKeys = Object.keys(students);
-            
-            let paidCount = 0;
-            studentKeys.forEach(k => { if (students[k].paid) paidCount++; });
-
-            const totalAmount = paidCount * (currentItem.amountPerStudent || 0);
-
-            let studentsListHtml = '';
-            if (studentKeys.length === 0) {
-                studentsListHtml = `<tr><td colspan="3" class="p-4 text-center text-gray-400">Chưa có học sinh trong danh sách đợt thu này.</td></tr>`;
-            } else {
-                studentKeys.forEach((sId, index) => {
-                    const st = students[sId];
-                    studentsListHtml += `
-                        <tr class="border-b hover:bg-slate-50 transition">
-                            <td class="p-3 font-medium text-slate-600">${index + 1}</td>
-                            <td class="p-3 font-medium ${st.paid ? 'line-through text-gray-400' : 'text-slate-800'}">${st.name}</td>
-                            <td class="p-3 text-center">
-                                <label class="inline-flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" ${st.paid ? 'checked' : ''} 
-                                        onchange="togglePayment('${activeCollectionId}', '${sId}', this.checked)"
-                                        class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer">
-                                    <span class="text-xs ${st.paid ? 'text-green-600 font-semibold' : 'text-gray-400'}">
-                                        ${st.paid ? 'Đã đóng' : 'Chưa đóng'}
-                                    </span>
-                                </label>
-                            </td>
-                        </tr>
-                    `;
-                });
-            }
-
-            contentContainer.innerHTML = `
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5 space-y-4">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 gap-2">
-                        <div>
-                            <h3 class="text-lg font-bold text-slate-800">${currentItem.title}</h3>
-                            <p class="text-sm text-slate-500">Mức thu: <span class="font-semibold text-blue-600">${(currentItem.amountPerStudent || 0).toLocaleString()} VNĐ</span>/HS</p>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <div class="text-right">
-                                <div class="text-xs text-slate-500">Đã thu (${paidCount}/${studentKeys.length})</div>
-                                <div class="text-lg font-bold text-green-600">${totalAmount.toLocaleString()} VNĐ</div>
-                            </div>
-                            <button onclick="deleteCollection('${activeCollectionId}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2.5 py-1.5 rounded hover:bg-red-50 transition">
-                                🗑️ Xóa Đợt
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Form Thêm Học Sinh -->
-                    <form onsubmit="addStudent(event, '${activeCollectionId}')" class="flex gap-2">
-                        <input type="text" id="input-student-name-${activeCollectionId}" placeholder="Thêm tên học sinh mới..." required
-                            class="flex-1 border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <button type="submit" class="bg-slate-700 hover:bg-slate-800 text-white text-sm px-4 py-1.5 rounded-md transition">
-                            Thêm HS
-                        </button>
-                    </form>
-
-                    <!-- Bảng Danh Sách Học Sinh -->
-                    <div class="overflow-x-auto border rounded-lg">
-                        <table class="w-full text-sm text-left">
-                            <thead class="bg-slate-50 text-slate-600 border-b">
-                                <tr>
-                                    <th class="p-3 w-12">STT</th>
-                                    <th class="p-3">Họ và Tên</th>
-                                    <th class="p-3 text-center w-36">Trạng Thái Quỹ</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${studentsListHtml}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-        }
-
-        // Chọn đợt thu từ menu
-        function selectCollection(id) {
-            activeCollectionId = id;
-            renderCollectionsNavAndContent();
-        }
-
-        // 3. Cập nhật Trạng Thái Đóng Quỹ (LƯU TRỰC TIẾP LÊN FIREBASE REALTIME)
-        function togglePayment(collectionId, studentId, isPaid) {
-            db.ref(`collections/${collectionId}/students/${studentId}/paid`).set(isPaid)
-                .catch(error => {
-                    alert("Lỗi khi lưu dữ liệu: " + error.message);
-                });
-        }
-
-        // 4. Thêm Học Sinh Vào Đợt Thu
-        function addStudent(event, collectionId) {
-            event.preventDefault();
-            const inputEl = document.getElementById(`input-student-name-${collectionId}`);
-            const name = inputEl.value.trim();
-
-            if (!name) return;
-
-            const studentRef = db.ref(`collections/${collectionId}/students`).push();
-            studentRef.set({
-                name: name,
-                paid: false
-            }).then(() => {
-                inputEl.value = '';
-            });
-        }
-
-        // 5. Xóa Đợt Thu
-        function deleteCollection(collectionId) {
-            if (confirm("Bạn có chắc chắn muốn xóa đợt thu này không?")) {
-                db.ref(`collections/${collectionId}`).remove();
-            }
-        }
-
-        // 6. Quản Lý Chi Tiêu
-        document.getElementById('form-add-expense').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const title = document.getElementById('expense-title').value.trim();
-            const amount = parseInt(document.getElementById('expense-amount').value);
-
-            if (!title || isNaN(amount)) return;
-
-            db.ref('expenses').push({
-                title: title,
-                amount: amount,
-                createdAt: firebase.database.ServerValue.TIMESTAMP
-            }).then(() => {
-                document.getElementById('expense-title').value = '';
-                document.getElementById('expense-amount').value = '';
-            });
-        });
-
-        // Lắng nghe Lịch Sử Chi Tiêu
-        db.ref('expenses').on('value', (snapshot) => {
-            const data = snapshot.val() || {};
-            const tbody = document.getElementById('expenses-table-body');
-
-            const keys = Object.keys(data);
-            if (keys.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-gray-400">Chưa có khoản chi nào.</td></tr>`;
-                return;
-            }
-
-            let html = '';
-            keys.reverse().forEach(id => {
-                const item = data[id];
-                html += `
-                    <tr class="border-b hover:bg-slate-50">
-                        <td class="p-3 font-medium text-slate-800">${item.title}</td>
-                        <td class="p-3 text-right font-bold text-red-600">-${(item.amount || 0).toLocaleString()} VNĐ</td>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-100 text-gray-600 uppercase text-xs">
+                        <th class="p-3 border-b text-center w-10">
+                            <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" class="rounded cursor-pointer">
+                        </th>
+                        <th class="p-3 border-b">STT</th>
+                        <th class="p-3 border-b">Họ và Tên</th>
+                        <th class="p-3 border-b">Chức Danh</th>
+                        <th class="p-3 border-b text-right">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="(m, idx) in sortedMembers" :key="m.id" class="hover:bg-gray-50 border-b">
                         <td class="p-3 text-center">
-                            <button onclick="deleteExpense('${id}')" class="text-red-500 hover:text-red-700 text-xs">🗑️ Xóa</button>
+                            <input type="checkbox" :value="m.id" v-model="selectedMemberIds" class="rounded cursor-pointer">
+                        </td>
+                        <td class="p-3 text-gray-500 text-sm">[[ idx + 1 ]]</td>
+                        <td class="p-3 font-semibold text-gray-800">[[ m.full_name ]]</td>
+                        <td class="p-3">
+                            <select v-model="m.role" @change="syncData" class="text-xs border rounded p-1 font-medium bg-gray-50 border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                <option value="Lớp trưởng">Lớp trưởng</option>
+                                <option value="Lớp phó">Lớp phó</option>
+                                <option value="Thủ quỹ">Thủ quỹ</option>
+                                <option value="Tổ trưởng">Tổ trưởng</option>
+                                <option value="BCH Chi đoàn">BCH Chi đoàn</option>
+                                <option value="Thành viên">Thành viên</option>
+                            </select>
+                        </td>
+                        <td class="p-3 text-right">
+                            <button @click="openMemberModal(m)" class="text-blue-600 hover:underline mr-3 text-xs"><i class="fa-solid fa-pen"></i> Sửa</button>
+                            <button @click="deleteMember(m.id)" class="text-red-600 hover:underline text-xs"><i class="fa-solid fa-trash"></i> Xóa</button>
                         </td>
                     </tr>
-                `;
-            });
-            tbody.innerHTML = html;
-        });
+                </tbody>
+            </table>
+        </div>
 
-        function deleteExpense(id) {
-            if (confirm("Bạn có chắc chắn muốn xóa khoản chi này?")) {
-                db.ref(`expenses/${id}`).remove();
+        <!-- TAB 2: ĐỢT THU QUỸ (TÁCH RIÊNG CÁC MỤC) -->
+        <div v-if="activeTab === 'campaigns'" class="bg-white p-6 rounded-lg shadow">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-700">Quản Lý Các Đợt Thu Quỹ Học Sinh</h2>
+                <button @click="openCampaignModal()" class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 text-sm">
+                    <i class="fa-solid fa-plus mr-1"></i>Tạo Đợt Thu Mới
+                </button>
+            </div>
+
+            <div v-if="campaigns.length === 0" class="text-center py-8 text-gray-500 text-sm">
+                Chưa có đợt thu quỹ nào. Bấm "Tạo Đợt Thu Mới" để bắt đầu!
+            </div>
+
+            <!-- THANH CHỌN TỪNG ĐỢT THU RIÊNG BIỆT -->
+            <div v-if="campaigns.length > 0" class="flex gap-2 overflow-x-auto pb-3 mb-4 border-b">
+                <button v-for="c in campaigns" :key="c.id" 
+                        @click="selectedCampaignId = c.id"
+                        :class="selectedCampaignId === c.id ? 'bg-blue-600 text-white font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                        class="px-4 py-2 rounded-lg text-sm whitespace-nowrap transition flex items-center gap-2">
+                    <i class="fa-solid fa-folder-closed"></i> [[ c.title ]]
+                </button>
+            </div>
+
+            <!-- NỘI DUNG ĐỢT THU ĐƯỢC CHỌN -->
+            <div v-for="c in activeCampaignList" :key="c.id" class="border rounded-lg p-4 bg-gray-50 shadow-sm">
+                <div class="flex justify-between items-center border-b pb-3 mb-3">
+                    <div>
+                        <h3 class="font-bold text-lg text-blue-800 flex items-center gap-2">
+                            [[ c.title ]]
+                            <button @click="openCampaignModal(c)" class="text-xs text-blue-600 hover:underline font-normal"><i class="fa-solid fa-pen"></i> Sửa</button>
+                            <button @click="deleteCampaign(c.id)" class="text-xs text-red-500 hover:underline font-normal"><i class="fa-solid fa-trash"></i> Xóa</button>
+                        </h3>
+                        <p class="text-sm text-gray-600">Mức đóng/học sinh: <span class="font-bold text-red-600">[[ formatMoney(c.amount_per_member) ]]đ</span></p>
+                    </div>
+                    <div class="text-right bg-blue-50 px-3 py-1.5 rounded border border-blue-200">
+                        <span class="text-xs text-gray-500 block">Đã thu đợt này</span>
+                        <span class="text-base font-bold text-green-600">[[ formatMoney(getCampaignCollectedAmount(c)) ]]đ</span>
+                    </div>
+                </div>
+
+                <!-- BỘ LỌC ĐÃ ĐÓNG / CHƯA ĐÓNG -->
+                <div class="flex items-center justify-between mb-3 bg-white p-2 rounded border">
+                    <div class="flex gap-2 items-center">
+                        <span class="text-xs font-bold text-gray-600 mr-2"><i class="fa-solid fa-filter"></i> Lọc danh sách:</span>
+                        <button @click="statusFilter[c.id] = 'all'" :class="(!statusFilter[c.id] || statusFilter[c.id]==='all') ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'" class="px-3 py-1 rounded text-xs font-medium">Tất cả ([[ sortedMembers.length ]])</button>
+                        <button @click="statusFilter[c.id] = 'paid'" :class="statusFilter[c.id]==='paid' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'" class="px-3 py-1 rounded text-xs font-medium">Đã đóng ([[ getPaidCount(c.id) ]])</button>
+                        <button @click="statusFilter[c.id] = 'unpaid'" :class="statusFilter[c.id]==='unpaid' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700'" class="px-3 py-1 rounded text-xs font-medium">Chưa đóng ([[ sortedMembers.length - getPaidCount(c.id) ]])</button>
+                    </div>
+                </div>
+
+                <!-- DANH SÁCH THÀNH VIÊN -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div v-for="m in filteredMembersForCampaign(c.id)" :key="m.id" 
+                         class="p-3 bg-white rounded border flex justify-between items-center shadow-sm">
+                        <div>
+                            <p class="font-medium text-sm">[[ m.full_name ]]</p>
+                            <p class="text-xs text-gray-400">[[ m.role ]]</p>
+                        </div>
+                        <button @click="togglePaidStatus(c.id, m.id)" 
+                                :class="isPaid(c.id, m.id) ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'"
+                                class="px-3 py-1 text-xs rounded-full font-bold transition cursor-pointer">
+                            [[ isPaid(c.id, m.id) ? '✓ Đã đóng' : 'Chưa đóng' ]]
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: THU NGOÀI VÀ CHI TIÊU -->
+        <div v-if="activeTab === 'transactions'" class="bg-white p-6 rounded-lg shadow">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-700">Sổ Giao Dịch: Thu Ngoài Quỹ & Chi Tiêu</h2>
+                    <p class="text-xs text-gray-500">Thêm tiền thưởng, tài trợ ngoài hoặc các khoản chi tiêu của lớp</p>
+                </div>
+                <button @click="openTransModal()" class="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 text-sm">
+                    <i class="fa-solid fa-plus mr-1"></i>Thêm Giao Dịch
+                </button>
+            </div>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-100 text-gray-600 uppercase text-xs">
+                        <th class="p-3 border-b">Thời Gian</th>
+                        <th class="p-3 border-b">Loại Giao Dịch</th>
+                        <th class="p-3 border-b">Danh Mục</th>
+                        <th class="p-3 border-b">Mô Tả / Nguồn Tiền</th>
+                        <th class="p-3 border-b text-right">Số Tiền</th>
+                        <th class="p-3 border-b text-right">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-if="transactions.length === 0">
+                        <td colspan="6" class="p-6 text-center text-gray-500 text-sm">Chưa có giao dịch thu ngoài hoặc chi tiêu nào.</td>
+                    </tr>
+                    <tr v-for="t in transactions" :key="t.id" class="border-b hover:bg-gray-50">
+                        <td class="p-3 text-sm text-gray-500">[[ t.created_at ]]</td>
+                        <td class="p-3">
+                            <span class="px-2 py-1 text-xs rounded font-bold"
+                                  :class="t.type === 'IN' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'">
+                                [[ t.type === 'IN' ? 'THU NGOÀI' : 'CHI TIÊU' ]]
+                            </span>
+                        </td>
+                        <td class="p-3 font-medium">[[ t.category ]]</td>
+                        <td class="p-3 text-gray-600 text-sm">[[ t.description ]]</td>
+                        <td class="p-3 text-right font-bold" :class="t.type === 'IN' ? 'text-green-600' : 'text-red-600'">
+                            [[ t.type === 'IN' ? '+' : '-' ]][[ formatMoney(t.amount) ]]đ
+                        </td>
+                        <td class="p-3 text-right">
+                            <button @click="openTransModal(t)" class="text-blue-600 hover:underline mr-3 text-xs"><i class="fa-solid fa-pen"></i> Sửa</button>
+                            <button @click="deleteTransaction(t.id)" class="text-red-600 hover:underline text-xs"><i class="fa-solid fa-trash"></i> Xóa</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- TAB 4: IN HÓA ĐƠN -->
+        <div v-if="activeTab === 'invoice'" class="bg-white p-6 rounded-lg shadow">
+            <div class="no-print flex gap-4 mb-6 items-center bg-gray-50 p-4 rounded">
+                <label class="font-medium text-sm">Lọc giao dịch:</label>
+                <select v-model="filterType" class="border rounded p-2 text-sm">
+                    <option value="all">Tất cả thời gian</option>
+                    <option value="today">Hôm nay</option>
+                </select>
+                <button @click="printInvoice" class="bg-gray-800 text-white px-4 py-2 rounded text-sm hover:bg-gray-900 ml-auto">
+                    <i class="fa-solid fa-print mr-1"></i>In Báo Cáo / Hóa Đơn
+                </button>
+            </div>
+
+            <div id="printable-area" class="p-8 border rounded max-w-2xl mx-auto bg-white">
+                <div class="text-center border-b pb-4 mb-4">
+                    <h2 class="text-2xl font-bold uppercase">Báo Cáo Thu Chi Quỹ Lớp</h2>
+                    <p class="text-xs text-gray-400 mt-1">Ngày xuất báo cáo: [[ new Date().toLocaleDateString('vi-VN') ]]</p>
+                </div>
+
+                <table class="w-full text-left border-collapse text-sm mb-6">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="py-2">Thời gian</th>
+                            <th class="py-2">Nội dung / Mô tả</th>
+                            <th class="py-2 text-right">Số tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="filteredTransactions.length === 0">
+                            <td colspan="3" class="py-4 text-center text-gray-500">Chưa phát sinh giao dịch.</td>
+                        </tr>
+                        <tr v-for="t in filteredTransactions" :key="t.id" class="border-b">
+                            <td class="py-2 text-gray-500">[[ t.created_at ]]</td>
+                            <td class="py-2">[[ t.description ]]</td>
+                            <td class="py-2 text-right font-semibold" :class="t.type==='IN'?'text-green-600':'text-red-600'">
+                                [[ t.type==='IN'?'+':'-' ]][[ formatMoney(t.amount) ]]đ
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="border-t pt-4 text-right">
+                    <p class="text-sm">Tổng thu quỹ các đợt: <span class="font-bold text-green-600">+[[ formatMoney(totalCampaignCollected) ]]đ</span></p>
+                    <p class="text-sm">Tổng thu nguồn ngoài: <span class="font-bold text-green-600">+[[ formatMoney(totalOtherIn) ]]đ</span></p>
+                    <p class="text-sm">Tổng chi tiêu: <span class="font-bold text-red-600">-[[ formatMoney(summary.total_out) ]]đ</span></p>
+                    <p class="text-lg font-bold mt-2">Cân đối tồn quỹ: [[ formatMoney(summary.balance) ]]đ</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL THÀNH VIÊN -->
+        <div v-if="showAddMemberModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full">
+                <h3 class="font-bold text-lg mb-4">[[ memberForm.id ? 'Sửa' : 'Thêm' ]] Thành Viên</h3>
+                <input v-model="memberForm.full_name" type="text" placeholder="Họ và Tên" class="w-full border rounded p-2 mb-3 text-sm">
+                <input v-model="memberForm.role" type="text" placeholder="Chức danh (VD: Lớp trưởng, Thành viên)" class="w-full border rounded p-2 mb-4 text-sm">
+                <div class="flex justify-end gap-2">
+                    <button @click="showAddMemberModal = false" class="px-4 py-2 border rounded text-sm">Hủy</button>
+                    <button @click="saveMember" class="px-4 py-2 bg-blue-600 text-white rounded text-sm">Lưu</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL TẠO / SỬA ĐỢT THU QUỸ -->
+        <div v-if="showAddCampaignModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full">
+                <h3 class="font-bold text-lg mb-4">[[ campaignForm.id ? 'Sửa' : 'Tạo' ]] Đợt Thu Quỹ</h3>
+                <input v-model="campaignForm.title" type="text" placeholder="Tên đợt thu (VD: Quỹ Học Kỳ I)" class="w-full border rounded p-2 mb-3 text-sm">
+                <label class="block text-xs font-semibold text-gray-500 mb-1">Số tiền mỗi thành viên (VNĐ):</label>
+                <input :value="campaignForm.formattedAmount" @input="onCampaignAmountInput" type="text" placeholder="VD: 100.000" class="w-full border rounded p-2 mb-4 text-sm font-bold text-red-600">
+                <div class="flex justify-end gap-2">
+                    <button @click="showAddCampaignModal = false" class="px-4 py-2 border rounded text-sm">Hủy</button>
+                    <button @click="saveCampaign" class="px-4 py-2 bg-green-600 text-white rounded text-sm">Lưu Đợt Thu</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL TẠO / SỬA GIAO DỊCH THU NGOÀI VÀ CHI TIÊU -->
+        <div v-if="showAddTransModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full">
+                <h3 class="font-bold text-lg mb-4">[[ transForm.id ? 'Sửa' : 'Thêm' ]] Giao Dịch</h3>
+                <label class="block text-xs font-semibold text-gray-500 mb-1">Loại giao dịch:</label>
+                <select v-model="transForm.type" class="w-full border rounded p-2 mb-3 text-sm font-semibold">
+                    <option value="IN">Thu Ngoài Quỹ (+) (Tiền thưởng, Tài trợ)</option>
+                    <option value="OUT">Chi Tiêu Quỹ (-)</option>
+                </select>
+                <input v-model="transForm.category" type="text" placeholder="Danh mục (VD: Tiền thưởng thi đua, Photocopy)" class="w-full border rounded p-2 mb-3 text-sm">
+                <label class="block text-xs font-semibold text-gray-500 mb-1">Số tiền (VNĐ):</label>
+                <input :value="transForm.formattedAmount" @input="onTransAmountInput" type="text" placeholder="VD: 500.000" class="w-full border rounded p-2 mb-3 text-sm font-bold">
+                <textarea v-model="transForm.description" placeholder="Mô tả chi tiết nguồn tiền hoặc lý do chi" class="w-full border rounded p-2 mb-4 text-sm h-20"></textarea>
+                <div class="flex justify-end gap-2">
+                    <button @click="showAddTransModal = false" class="px-4 py-2 border rounded text-sm">Hủy</button>
+                    <button @click="saveTransaction" class="px-4 py-2 bg-blue-600 text-white rounded text-sm">Lưu Giao Dịch</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const FIREBASE_URL = "https://quan-ly-quy-lop-2285d-default-rtdb.firebaseio.com/data.json";
+
+        const DEFAULT_MEMBERS = [
+            { id: 101, full_name: "Nguyễn Đức Tiến", role: "Lớp trưởng" },
+            { id: 102, full_name: "Đặng Hồ Quốc Thái", role: "Lớp phó" },
+            { id: 103, full_name: "Lê Hồ Xuân Duyên", role: "Tổ trưởng" },
+            { id: 104, full_name: "Phạm Khánh Linh", role: "Tổ trưởng" },
+            { id: 105, full_name: "Quách Hạo Nam", role: "Tổ trưởng" },
+            { id: 106, full_name: "Mai Chí Tài", role: "Tổ trưởng" },
+            { id: 107, full_name: "Nguyễn Thị Huyền Trang", role: "BCH Chi đoàn" },
+            { id: 108, full_name: "Nguyễn Thị Bích Khoa", role: "BCH Chi đoàn" },
+            { id: 109, full_name: "Lê Đào Bích Phượng", role: "BCH Chi đoàn" },
+            { id: 110, full_name: "Trần Phương Nam", role: "Thành viên" },
+            { id: 111, full_name: "Lý Hoàng Khôi", role: "Thành viên" },
+            { id: 112, full_name: "Nguyễn Thanh Hoàng Phúc", role: "Thành viên" },
+            { id: 113, full_name: "Phạm Quốc Duy", role: "Thành viên" },
+            { id: 114, full_name: "Lê Phước Đại", role: "Thành viên" },
+            { id: 115, full_name: "Huỳnh Hữu Phúc", role: "Thành viên" },
+            { id: 116, full_name: "Nguyễn Minh Tâm", role: "Thành viên" },
+            { id: 117, full_name: "Bùi Quốc Tuấn", role: "Thành viên" },
+            { id: 118, full_name: "Nguyễn Tiến Phúc", role: "Thành viên" },
+            { id: 119, full_name: "Võ Văn Anh Tuấn", role: "Thành viên" },
+            { id: 120, full_name: "Phạm Quốc Bảo", role: "Thành viên" },
+            { id: 121, full_name: "Nguyễn Nhật Huy", role: "Thành viên" }
+        ];
+
+        const { createApp } = Vue;
+
+        createApp({
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    activeTab: 'members',
+                    selectedMemberIds: [],
+                    members: [],
+                    campaigns: [],
+                    paidStatuses: {},
+                    statusFilter: {},
+                    transactions: [],
+                    selectedCampaignId: null,
+                    showAddMemberModal: false,
+                    memberForm: { id: null, full_name: '', role: 'Thành viên' },
+                    showAddCampaignModal: false,
+                    campaignForm: { id: null, title: '', amount_per_member: 0, formattedAmount: '' },
+                    showAddTransModal: false,
+                    transForm: { id: null, type: 'IN', category: '', amount: 0, formattedAmount: '', description: '' },
+                    filterType: 'all'
+                }
+            },
+            computed: {
+                sortedMembers() {
+                    return [...this.members].sort((a, b) => {
+                        const getParts = name => {
+                            const p = name.trim().split(' ');
+                            return { first: p[p.length - 1], rest: p.slice(0, -1).join(' ') };
+                        };
+                        const pA = getParts(a.full_name);
+                        const pB = getParts(b.full_name);
+                        const cmp = pA.first.localeCompare(pB.first, 'vi');
+                        return cmp !== 0 ? cmp : pA.rest.localeCompare(pB.rest, 'vi');
+                    });
+                },
+                activeCampaignList() {
+                    if (!this.selectedCampaignId && this.campaigns.length > 0) {
+                        this.selectedCampaignId = this.campaigns[0].id;
+                    }
+                    return this.campaigns.filter(c => c.id === this.selectedCampaignId);
+                },
+                isAllSelected() {
+                    return this.members.length > 0 && this.selectedMemberIds.length === this.members.length;
+                },
+                totalCampaignCollected() {
+                    let total = 0;
+                    this.campaigns.forEach(c => {
+                        this.members.forEach(m => {
+                            if (this.isPaid(c.id, m.id)) {
+                                total += c.amount_per_member;
+                            }
+                        });
+                    });
+                    return total;
+                },
+                totalOtherIn() {
+                    return this.transactions.filter(t => t.type === 'IN').reduce((sum, t) => sum + t.amount, 0);
+                },
+                summary() {
+                    const total_in = this.totalCampaignCollected + this.totalOtherIn;
+                    const total_out = this.transactions.filter(t => t.type === 'OUT').reduce((sum, t) => sum + t.amount, 0);
+                    return {
+                        total_in,
+                        total_out,
+                        balance: total_in - total_out
+                    };
+                },
+                filteredTransactions() {
+                    if (this.filterType === 'all') return this.transactions;
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    return this.transactions.filter(t => t.created_at.startsWith(todayStr));
+                }
+            },
+            mounted() {
+                this.loadLocalData();
+                this.fetchDataFromFirebase();
+                setInterval(this.fetchDataFromFirebase, 3000);
+            },
+            methods: {
+                loadLocalData() {
+                    const local = localStorage.getItem('quy_lop_data');
+                    if (local) {
+                        try {
+                            const data = JSON.parse(local);
+                            this.members = data.members || DEFAULT_MEMBERS;
+                            this.campaigns = data.campaigns || [];
+                            this.paidStatuses = data.paidStatuses || {};
+                            this.transactions = data.transactions || [];
+                        } catch (e) {
+                            this.members = DEFAULT_MEMBERS;
+                        }
+                    } else {
+                        this.members = DEFAULT_MEMBERS;
+                    }
+                },
+                saveLocalData() {
+                    localStorage.setItem('quy_lop_data', JSON.stringify({
+                        members: this.members,
+                        campaigns: this.campaigns,
+                        paidStatuses: this.paidStatuses,
+                        transactions: this.transactions
+                    }));
+                },
+                async fetchDataFromFirebase() {
+                    try {
+                        const res = await fetch(FIREBASE_URL);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data) {
+                                if (data.members && data.members.length > 0) this.members = data.members;
+                                this.campaigns = data.campaigns || [];
+                                this.paidStatuses = data.paidStatuses || {};
+                                this.transactions = data.transactions || [];
+                                this.saveLocalData();
+                            }
+                        }
+                    } catch (e) {
+                        console.log("Sử dụng dữ liệu offline");
+                    }
+                },
+                async syncData() {
+                    this.saveLocalData();
+                    try {
+                        await fetch(FIREBASE_URL, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                members: this.members,
+                                campaigns: this.campaigns,
+                                paidStatuses: this.paidStatuses,
+                                transactions: this.transactions
+                            })
+                        });
+                    } catch (e) {
+                        console.error("Lỗi đồng bộ", e);
+                    }
+                },
+                formatMoney(val) {
+                    return new Intl.NumberFormat('vi-VN').format(val || 0);
+                },
+                formatNumberWithDots(val) {
+                    let clean = val.toString().replace(/\D/g, '');
+                    if (!clean) return '';
+                    return clean.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                },
+                parseNumberFromDots(val) {
+                    return parseInt(val.toString().replace(/\./g, ''), 10) || 0;
+                },
+                onCampaignAmountInput(e) {
+                    const formatted = this.formatNumberWithDots(e.target.value);
+                    this.campaignForm.formattedAmount = formatted;
+                    this.campaignForm.amount_per_member = this.parseNumberFromDots(formatted);
+                },
+                onTransAmountInput(e) {
+                    const formatted = this.formatNumberWithDots(e.target.value);
+                    this.transForm.formattedAmount = formatted;
+                    this.transForm.amount = this.parseNumberFromDots(formatted);
+                },
+                importExcel(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        try {
+                            const data = evt.target.result;
+                            const workbook = XLSX.read(data, { type: 'binary' });
+                            const firstSheet = workbook.SheetNames[0];
+                            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { header: 1 });
+
+                            let countAdded = 0;
+                            rows.forEach((row, idx) => {
+                                if (idx === 0) return;
+                                if (row.length > 0 && row[0]) {
+                                    const fullName = row[0].toString().trim();
+                                    const role = row[1] ? row[1].toString().trim() : 'Thành viên';
+                                    
+                                    if (fullName && !this.members.some(m => m.full_name === fullName)) {
+                                        this.members.push({
+                                            id: Date.now() + Math.random(),
+                                            full_name: fullName,
+                                            role: role
+                                        });
+                                        countAdded++;
+                                    }
+                                }
+                            });
+
+                            this.syncData();
+                            alert(`Đã thêm ${countAdded} học sinh từ Excel!`);
+                            this.$refs.excelInput.value = '';
+                        } catch (err) {
+                            alert("Lỗi khi đọc file Excel!");
+                        }
+                    };
+                    reader.readAsBinaryString(file);
+                },
+                toggleSelectAll() {
+                    if (this.isAllSelected) {
+                        this.selectedMemberIds = [];
+                    } else {
+                        this.selectedMemberIds = this.members.map(m => m.id);
+                    }
+                },
+                bulkDeleteMembers() {
+                    if (confirm(`Xóa ${this.selectedMemberIds.length} học sinh đã chọn?`)) {
+                        this.members = this.members.filter(m => !this.selectedMemberIds.includes(m.id));
+                        this.selectedMemberIds = [];
+                        this.syncData();
+                    }
+                },
+                isPaid(campaignId, memberId) {
+                    return !!this.paidStatuses[`${campaignId}_${memberId}`];
+                },
+                togglePaidStatus(campaignId, memberId) {
+                    const key = `${campaignId}_${memberId}`;
+                    this.paidStatuses[key] = !this.paidStatuses[key];
+                    this.syncData();
+                },
+                getCampaignCollectedAmount(campaign) {
+                    let count = 0;
+                    this.members.forEach(m => {
+                        if (this.isPaid(campaign.id, m.id)) count++;
+                    });
+                    return count * campaign.amount_per_member;
+                },
+                getPaidCount(campaignId) {
+                    return this.members.filter(m => this.isPaid(campaignId, m.id)).length;
+                },
+                filteredMembersForCampaign(campaignId) {
+                    const filter = this.statusFilter[campaignId] || 'all';
+                    if (filter === 'paid') {
+                        return this.sortedMembers.filter(m => this.isPaid(campaignId, m.id));
+                    } else if (filter === 'unpaid') {
+                        return this.sortedMembers.filter(m => !this.isPaid(campaignId, m.id));
+                    }
+                    return this.sortedMembers;
+                },
+                openMemberModal(member = null) {
+                    if (member) {
+                        this.memberForm = { ...member };
+                    } else {
+                        this.memberForm = { id: null, full_name: '', role: 'Thành viên' };
+                    }
+                    this.showAddMemberModal = true;
+                },
+                saveMember() {
+                    if (!this.memberForm.full_name) return;
+                    if (this.memberForm.id) {
+                        const idx = this.members.findIndex(m => m.id === this.memberForm.id);
+                        if (idx !== -1) this.members[idx] = { ...this.memberForm };
+                    } else {
+                        this.members.push({
+                            id: Date.now(),
+                            full_name: this.memberForm.full_name,
+                            role: this.memberForm.role || 'Thành viên'
+                        });
+                    }
+                    this.showAddMemberModal = false;
+                    this.syncData();
+                },
+                deleteMember(id) {
+                    if (confirm('Xóa thành viên này?')) {
+                        this.members = this.members.filter(m => m.id !== id);
+                        this.syncData();
+                    }
+                },
+                openCampaignModal(campaign = null) {
+                    if (campaign) {
+                        this.campaignForm = { 
+                            id: campaign.id, 
+                            title: campaign.title, 
+                            amount_per_member: campaign.amount_per_member,
+                            formattedAmount: this.formatNumberWithDots(campaign.amount_per_member)
+                        };
+                    } else {
+                        this.campaignForm = { id: null, title: '', amount_per_member: 0, formattedAmount: '' };
+                    }
+                    this.showAddCampaignModal = true;
+                },
+                saveCampaign() {
+                    if (!this.campaignForm.title) return;
+                    if (this.campaignForm.id) {
+                        const idx = this.campaigns.findIndex(c => c.id === this.campaignForm.id);
+                        if (idx !== -1) {
+                            this.campaigns[idx].title = this.campaignForm.title;
+                            this.campaigns[idx].amount_per_member = this.campaignForm.amount_per_member;
+                        }
+                    } else {
+                        const newId = Date.now();
+                        this.campaigns.push({
+                            id: newId,
+                            title: this.campaignForm.title,
+                            amount_per_member: this.campaignForm.amount_per_member
+                        });
+                        this.selectedCampaignId = newId;
+                    }
+                    this.showAddCampaignModal = false;
+                    this.syncData();
+                },
+                deleteCampaign(id) {
+                    if (confirm('Xóa đợt thu này?')) {
+                        this.campaigns = this.campaigns.filter(c => c.id !== id);
+                        if (this.selectedCampaignId === id) {
+                            this.selectedCampaignId = this.campaigns.length > 0 ? this.campaigns[0].id : null;
+                        }
+                        this.syncData();
+                    }
+                },
+                openTransModal(trans = null) {
+                    if (trans) {
+                        this.transForm = { 
+                            id: trans.id, 
+                            type: trans.type, 
+                            category: trans.category, 
+                            amount: trans.amount, 
+                            formattedAmount: this.formatNumberWithDots(trans.amount), 
+                            description: trans.description 
+                        };
+                    } else {
+                        this.transForm = { id: null, type: 'IN', category: '', amount: 0, formattedAmount: '', description: '' };
+                    }
+                    this.showAddTransModal = true;
+                },
+                saveTransaction() {
+                    if (!this.transForm.amount) return;
+                    if (this.transForm.id) {
+                        const idx = this.transactions.findIndex(t => t.id === this.transForm.id);
+                        if (idx !== -1) {
+                            this.transactions[idx] = {
+                                ...this.transactions[idx],
+                                type: this.transForm.type,
+                                category: this.transForm.category || 'Chung',
+                                amount: this.transForm.amount,
+                                description: this.transForm.description || ''
+                            };
+                        }
+                    } else {
+                        this.transactions.unshift({
+                            id: Date.now(),
+                            type: this.transForm.type,
+                            category: this.transForm.category || 'Chung',
+                            amount: this.transForm.amount,
+                            description: this.transForm.description || '',
+                            created_at: new Date().toISOString().split('T')[0]
+                        });
+                    }
+                    this.showAddTransModal = false;
+                    this.syncData();
+                },
+                deleteTransaction(id) {
+                    if (confirm('Xóa giao dịch này?')) {
+                        this.transactions = this.transactions.filter(t => t.id !== id);
+                        this.syncData();
+                    }
+                },
+                printInvoice() {
+                    window.print();
+                }
             }
-        }
+        }).mount('#app');
     </script>
 </body>
 </html>
