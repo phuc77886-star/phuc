@@ -409,7 +409,7 @@
 const FIREBASE_ROOT_URL = "https://quan-ly-quy-lop-2285d-default-rtdb.firebaseio.com";
 const FIREBASE_URL = FIREBASE_ROOT_URL + "/data.json";
 
-// Firebase SDK chỉ dùng cho kênh realtime. Các thao tác ghi vẫn dùng REST API hiện có.
+// Firebase SDK dùng cho cả đọc, ghi và đồng bộ realtime.
 let firebaseDatabase = null;
 try {
     if (window.firebase) {
@@ -728,31 +728,25 @@ createApp({
 
         async fetchDataFromFirebase() {
             if(this.isSyncing || this.pendingSync) return;
+            if(!firebaseDatabase) {
+                this.syncStatus='🔴 Chưa đồng bộ';
+                this.syncError='Firebase SDK chưa được khởi tạo';
+                return;
+            }
 
             try {
-                const res=await fetch(FIREBASE_URL, {
-                    method:'GET',
-                    cache:'no-store',
-                    headers:{'Cache-Control':'no-cache'}
-                });
-                if(!res.ok) throw new Error('Firebase HTTP '+res.status);
-
-                const data=await res.json();
-                if(!data) {
+                const snapshot=await firebaseDatabase.ref('data').once('value');
+                const data=snapshot.val();
+                if(!data || typeof data!=='object') {
                     this.syncStatus='🟢 Đã đồng bộ';
                     this.syncError='';
                     return;
                 }
 
-                if(data.members && data.members.length) this.members=data.members;
+                if(Array.isArray(data.members)) this.members=data.members;
                 if(Array.isArray(data.campaigns)) this.campaigns=data.campaigns;
-
-                if(data.paidStatuses && typeof data.paidStatuses==='object') {
-                    this.paidStatuses=data.paidStatuses;
-                } else if(data.paidStatuses === null) {
-                    this.paidStatuses={};
-                }
-
+                if(data.paidStatuses && typeof data.paidStatuses==='object') this.paidStatuses=data.paidStatuses;
+                else if(data.paidStatuses===null) this.paidStatuses={};
                 if(Array.isArray(data.transactions)) this.transactions=data.transactions;
 
                 if(this.campaigns.length && !this.campaigns.some(c=>String(c.id)===String(this.selectedCampaignId))) {
@@ -765,14 +759,23 @@ createApp({
                 this.saveLocalData();
             } catch(e) {
                 this.syncStatus='🔴 Chưa đồng bộ';
-                this.syncError=e.message || 'Không kết nối được Firebase';
+                this.syncError=e && e.message ? e.message : 'Không kết nối được Firebase';
                 console.error('Lỗi đọc Firebase:',e);
             }
         },
 
         async syncData() {
-            // Đồng bộ các nhóm dữ liệu chung cho các thao tác thêm/sửa/xóa.
-            // Trạng thái đóng tiền được xử lý riêng bằng syncPaidStatus() để tránh ghi đè giữa nhiều thiết bị.
+            // Dùng Firebase SDK để ghi trực tiếp vào database.
+            // Không dùng REST fetch nữa, tránh HTTP 400 và đảm bảo listener realtime
+            // trên các thiết bị khác nhận được cùng một thay đổi.
+            if(!firebaseDatabase) {
+                this.pendingSync=true;
+                this.syncStatus='🔴 Chưa đồng bộ';
+                this.syncError='Firebase SDK chưa được khởi tạo';
+                this.saveLocalData();
+                return;
+            }
+
             this.pendingSync=true;
             this.saveLocalData();
             this.isSyncing=true;
@@ -786,21 +789,17 @@ createApp({
                     transactions:this.transactions
                 };
 
-                const res=await fetch(FIREBASE_URL,{
-                    method:'PATCH',
-                    headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify(payload)
-                });
-
-                if(!res.ok) throw new Error('Firebase HTTP '+res.status);
+                await firebaseDatabase.ref('data').update(payload);
 
                 this.pendingSync=false;
                 this.syncStatus='🟢 Đã đồng bộ';
                 this.syncError='';
                 this.saveLocalData();
             } catch(e) {
+                this.pendingSync=true;
                 this.syncStatus='🔴 Chưa đồng bộ';
-                this.syncError=e.message || 'Không ghi được Firebase';
+                this.syncError=e && e.message ? e.message : 'Không ghi được Firebase';
+                this.saveLocalData();
                 console.error('Lỗi đồng bộ Firebase:',e);
             } finally {
                 this.isSyncing=false;
@@ -813,22 +812,20 @@ createApp({
             this.pendingSync=true;
             this.saveLocalData();
 
+            if(!firebaseDatabase) {
+                this.syncStatus='🔴 Chưa đồng bộ';
+                this.syncError='Firebase SDK chưa được khởi tạo';
+                return;
+            }
+
             this.isSyncing=true;
             this.syncStatus='🟡 Đang lưu trạng thái...';
             this.syncError='';
 
             try {
-                const url=FIREBASE_URL.replace(/\.json$/,'')
-                    + '/paidStatuses/' + encodeURIComponent(campaignId)
-                    + '/' + encodeURIComponent(memberId) + '.json';
-
-                const res=await fetch(url,{
-                    method:'PUT',
-                    headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify(!!value)
-                });
-
-                if(!res.ok) throw new Error('Firebase HTTP '+res.status);
+                // Ghi đúng một ô trạng thái. Firebase SDK sẽ phát sự kiện realtime
+                // cho tất cả các thiết bị đang lắng nghe /data.
+                await firebaseDatabase.ref('data/paidStatuses/' + String(campaignId) + '/' + String(memberId)).set(!!value);
 
                 delete this.pendingPaidUpdates[key];
                 this.pendingSync=Object.keys(this.pendingPaidUpdates).length>0;
@@ -838,7 +835,7 @@ createApp({
             } catch(e) {
                 this.pendingSync=true;
                 this.syncStatus='🔴 Chưa đồng bộ';
-                this.syncError=e.message || 'Không ghi được Firebase';
+                this.syncError=e && e.message ? e.message : 'Không ghi được Firebase';
                 this.saveLocalData();
                 console.error('Lỗi lưu trạng thái đóng tiền:',e);
             } finally {
