@@ -660,7 +660,7 @@ createApp({
             }
             if(this.realtimeConnection) this.realtimeConnection.close();
 
-            const streamUrl=FIREBASE_URL + (FIREBASE_URL.includes('?') ? '&' : '?') + 'ns=quan-ly-quy-lop-2285d-default-rtdb';
+            const streamUrl=FIREBASE_URL + (FIREBASE_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
             const stream=new EventSource(streamUrl);
             this.realtimeConnection=stream;
 
