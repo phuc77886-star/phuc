@@ -806,6 +806,32 @@ createApp({
             }
         },
 
+        firebaseSafeKey(value) {
+            // Firebase không cho phép các ký tự . # $ [ ] / trong key.
+            // ID hiện tại thường là số nên vẫn giữ nguyên; nếu sau này ID là chuỗi
+            // có ký tự đặc biệt thì tự động chuyển sang key an toàn.
+            return String(value)
+                .replace(/\./g,'_2e_')
+                .replace(/#/g,'_23_')
+                .replace(/\$/g,'_24_')
+                .replace(/\[/g,'_5b_')
+                .replace(/\]/g,'_5d_')
+                .replace(/\//g,'_2f_');
+        },
+
+        getPaidValue(campaignId,memberId) {
+            const campaign=this.paidStatuses[campaignId];
+            if(!campaign || typeof campaign!=='object') return false;
+
+            const rawKey=String(memberId);
+            const safeKey=this.firebaseSafeKey(memberId);
+
+            // Ưu tiên key cũ/raw để không làm mất dữ liệu hiện tại.
+            if(Object.prototype.hasOwnProperty.call(campaign,rawKey)) return campaign[rawKey] === true;
+            if(Object.prototype.hasOwnProperty.call(campaign,safeKey)) return campaign[safeKey] === true;
+            return false;
+        },
+
         async syncPaidStatus(campaignId,memberId,value) {
             const key=String(campaignId)+'_'+String(memberId);
             this.pendingPaidUpdates[key]={campaignId,memberId,value:!!value};
@@ -823,9 +849,15 @@ createApp({
             this.syncError='';
 
             try {
-                // Ghi đúng một ô trạng thái. Firebase SDK sẽ phát sự kiện realtime
-                // cho tất cả các thiết bị đang lắng nghe /data.
-                await firebaseDatabase.ref('data/paidStatuses/' + String(campaignId) + '/' + String(memberId)).set(!!value);
+                const campaignKey=this.firebaseSafeKey(campaignId);
+                const memberKey=this.firebaseSafeKey(memberId);
+
+                // Không ghép trực tiếp ID vào path nếu ID có ký tự Firebase cấm.
+                const statusRef=firebaseDatabase.ref('data/paidStatuses')
+                    .child(campaignKey)
+                    .child(memberKey);
+
+                await statusRef.set(!!value);
 
                 delete this.pendingPaidUpdates[key];
                 this.pendingSync=Object.keys(this.pendingPaidUpdates).length>0;
@@ -991,7 +1023,7 @@ createApp({
         },
 
         isPaid(campaignId,memberId) {
-            return !!(this.paidStatuses[campaignId] && this.paidStatuses[campaignId][memberId]);
+            return this.getPaidValue(campaignId,memberId);
         },
 
         async togglePaidStatus(campaignId,memberId) {
@@ -1012,16 +1044,9 @@ createApp({
         },
 
         getPaidCount(campaignId) {
-            // Chỉ đếm những mã học sinh thực sự còn nằm trong danh sách hiện tại.
-            // Tránh trường hợp Firebase còn trạng thái của học sinh đã xóa/import lại
-            // làm số đã đóng lớn hơn tổng số thành viên.
-            const status=this.paidStatuses[campaignId];
-            if(!status || typeof status!=='object') return 0;
-
-            const memberIds=new Set(this.members.map(m=>String(m.id)));
-            return Object.entries(status).filter(([memberId,paid]) =>
-                paid === true && memberIds.has(String(memberId))
-            ).length;
+            // Chỉ đếm trên danh sách thành viên hiện tại.
+            // Nhờ vậy cả key Firebase cũ lẫn key đã mã hóa đều được xử lý đúng.
+            return this.members.filter(m => this.isPaid(campaignId,m.id)).length;
         },
 
         getCampaignCollectedAmount(campaign) {
