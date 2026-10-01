@@ -10,6 +10,95 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         [v-cloak] { display: none; }
+
+        /* ==================== RESPONSIVE ĐA NỀN TẢNG ==================== */
+        * { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
+        body { overflow-x: hidden; }
+        button, input, select { min-height: 40px; }
+        table { min-width: 0; }
+        @media (max-width: 767px) {
+            #app { width: 100%; max-width: 100%; padding: 10px; }
+            header { padding: 16px !important; flex-direction: column; align-items: flex-start !important; gap: 12px; }
+            header h1 { font-size: 1.25rem !important; line-height: 1.35; }
+            header p { font-size: .75rem; }
+            header > div:last-child { width: 100%; text-align: left !important; }
+            header > div:last-child .text-3xl { font-size: 1.6rem !important; }
+
+            /* Thanh menu: chuyển thành lưới 2 cột trên điện thoại */
+            #app > .flex.border-b { display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 12px; }
+            #app > .flex.border-b button { width: 100%; padding: 11px 7px !important; min-height: 54px; font-size: .72rem !important; line-height: 1.2; border-bottom: 1px solid #e5e7eb; }
+            #app > .flex.border-b button i { display: block; margin: 0 0 4px !important; }
+
+            /* Các khối nội dung */
+            .bg-white.p-6 { padding: 14px !important; }
+            .bg-white.p-6.rounded-lg { border-radius: 10px; }
+            h2 { font-size: 1rem !important; line-height: 1.4; }
+            .text-xl { font-size: 1.15rem !important; }
+
+            /* Nút và form tự xuống dòng */
+            .flex.flex-wrap { row-gap: 8px; }
+            input, select { max-width: 100%; }
+
+            /* Bảng thành thẻ trên điện thoại */
+            table.responsive-table, .responsive-table table { width: 100%; }
+            table.responsive-table thead, .responsive-table thead { display: none; }
+            table.responsive-table tbody, table.responsive-table tr, .responsive-table tbody, .responsive-table tr { display: block; width: 100%; }
+            table.responsive-table tr, .responsive-table tr { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 10px; padding: 8px; }
+            table.responsive-table td, .responsive-table td { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px !important; border: 0 !important; text-align: right; }
+            table.responsive-table td::before, .responsive-table td::before { color: #6b7280; font-size: .72rem; font-weight: 600; text-align: left; flex: 0 0 auto; }
+            table.responsive-table td:nth-child(1)::before { content: 'STT'; }
+            table.responsive-table td:nth-child(2)::before { content: 'Họ và tên'; }
+            table.responsive-table td:nth-child(3)::before { content: 'Chức danh'; }
+            table.responsive-table td:nth-child(4)::before { content: 'Thao tác'; }
+            table.responsive-table.member-table td:nth-child(1)::before { content: 'Chọn'; }
+            table.responsive-table.member-table td:nth-child(2)::before { content: 'STT'; }
+            table.responsive-table.member-table td:nth-child(3)::before { content: 'Họ và tên'; }
+            table.responsive-table.member-table td:nth-child(4)::before { content: 'Chức danh'; }
+            table.responsive-table.member-table td:nth-child(5)::before { content: 'Thao tác'; }
+            table.responsive-table.transaction-table td:nth-child(1)::before { content: 'Ngày'; }
+            table.responsive-table.transaction-table td:nth-child(2)::before { content: 'Loại'; }
+            table.responsive-table.transaction-table td:nth-child(3)::before { content: 'Nơi thu / chi'; }
+            table.responsive-table.transaction-table td:nth-child(4)::before { content: 'Số tiền'; }
+            table.responsive-table.transaction-table td:nth-child(5)::before { content: 'Thao tác'; }
+            table.responsive-table td:last-child { justify-content: flex-end; }
+            table.responsive-table td[colspan] { display: block; text-align: center !important; }
+            table.responsive-table td[colspan]::before { display: none; }
+
+            /* Đợt thu: sidebar chuyển thành danh sách ngang có thể cuộn */
+            .campaign-layout { display: block !important; min-height: 0 !important; }
+            .campaign-sidebar { width: 100% !important; border-right: 0 !important; border-bottom: 1px solid #e5e7eb; padding: 12px !important; }
+            .campaign-list { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 4px; }
+            .campaign-list > button { min-width: 210px; flex: 0 0 210px; }
+            .campaign-detail { padding: 14px !important; }
+            .campaign-summary { display: grid !important; grid-template-columns: repeat(3,minmax(0,1fr)); width: 100%; }
+            .campaign-summary > div { padding: 8px !important; }
+            .campaign-summary .text-xl { font-size: 1rem !important; }
+
+            /* Bộ lọc báo cáo */
+            .invoice-filter { align-items: stretch !important; }
+            .invoice-filter label { width: 100%; }
+            .invoice-filter select, .invoice-filter input, .invoice-filter button { width: 100%; }
+            .invoice-filter .print-button { margin-left: 0 !important; }
+            #printable-area { padding: 14px !important; overflow-x: hidden; }
+            #printable-area table { font-size: .75rem; }
+            #printable-area th, #printable-area td { padding: 6px 3px !important; }
+
+            /* Modal vừa màn hình điện thoại */
+            .fixed.inset-0 > div { max-height: calc(100vh - 24px); overflow-y: auto; }
+        }
+        @media (min-width: 768px) and (max-width: 1023px) {
+            #app { padding: 16px; }
+            .campaign-layout { min-height: 0 !important; }
+            .campaign-sidebar { width: 230px !important; }
+            .campaign-detail { padding: 18px !important; }
+        }
+        @media (max-width: 380px) {
+            #app > .flex.border-b button { font-size: .66rem !important; padding-left: 4px !important; padding-right: 4px !important; }
+            .campaign-summary { grid-template-columns: 1fr !important; }
+            .campaign-list > button { min-width: 180px; flex-basis: 180px; }
+        }
+
         @media print {
             body * { visibility: hidden; }
             #printable-area, #printable-area * { visibility: visible; }
@@ -95,7 +184,7 @@
                 </button>
             </div>
         </div>
-        <table class="w-full text-left border-collapse">
+        <table class="w-full text-left border-collapse responsive-table member-table">
             <thead><tr class="bg-gray-100 text-gray-600 uppercase text-xs">
                 <th class="p-3 border-b text-center w-10"><input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll"></th>
                 <th class="p-3 border-b">STT</th><th class="p-3 border-b">Họ và Tên</th><th class="p-3 border-b">Chức Danh</th><th class="p-3 border-b text-right">Thao Tác</th>
@@ -139,11 +228,11 @@
             Chưa có đợt thu quỹ nào. Bấm "Tạo Đợt Thu Mới" để bắt đầu.
         </div>
 
-        <div v-else class="flex min-h-[500px]">
+        <div v-else class="flex min-h-[500px] campaign-layout">
             <!-- SIDEBAR ĐỢT THU -->
-            <aside class="w-72 bg-gray-50 border-r p-4">
+            <aside class="w-72 bg-gray-50 border-r p-4 campaign-sidebar">
                 <p class="text-xs font-bold text-gray-500 uppercase mb-3">Danh sách đợt thu</p>
-                <div class="space-y-2">
+                <div class="space-y-2 campaign-list">
                     <button v-for="(c,index) in campaigns" :key="c.id"
                             @click="selectedCampaignId=c.id"
                             :class="selectedCampaignId===c.id ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-700 hover:bg-blue-50 border'"
@@ -163,7 +252,7 @@
             </aside>
 
             <!-- CHỈ HIỂN THỊ MỘT ĐỢT ĐANG CHỌN -->
-            <section v-if="currentCampaign" class="flex-1 p-6">
+            <section v-if="currentCampaign" class="flex-1 p-6 campaign-detail">
                 <div class="flex flex-wrap justify-between items-start gap-3 border-b pb-4 mb-5">
                     <div>
                         <div class="flex items-center gap-2">
@@ -176,7 +265,7 @@
                             <span class="font-bold text-red-600">[[formatMoney(currentCampaign.amount_per_member)]]đ</span>
                         </p>
                     </div>
-                    <div class="flex gap-3">
+                    <div class="flex gap-3 campaign-summary">
                         <div class="bg-green-50 border border-green-200 p-3 rounded-lg text-center">
                             <span class="text-xs text-gray-500 block">Đã đóng</span>
                             <span class="text-xl font-bold text-green-600">[[getPaidCount(currentCampaign.id)]]</span>
@@ -222,17 +311,17 @@
             <div><h2 class="text-lg font-bold text-gray-700">Sổ Giao Dịch: Thu Ngoài Quỹ & Chi Tiêu</h2></div>
             <button @click="openTransModal()" class="bg-blue-600 text-white px-4 py-2 rounded shadow text-sm"><i class="fa-solid fa-plus mr-1"></i>Thêm Giao Dịch</button>
         </div>
-        <table class="w-full text-left border-collapse">
+        <table class="w-full text-left border-collapse responsive-table transaction-table">
             <thead><tr class="bg-gray-100 text-gray-600 uppercase text-xs">
-                <th class="p-3 border-b">Thời Gian</th><th class="p-3 border-b">Loại</th><th class="p-3 border-b">Danh Mục</th>
-                <th class="p-3 border-b">Mô Tả</th><th class="p-3 border-b text-right">Số Tiền</th><th class="p-3 border-b text-right">Thao Tác</th>
+                <th class="p-3 border-b">Ngày</th><th class="p-3 border-b">Loại</th><th class="p-3 border-b">Nơi thu / chi</th>
+                <th class="p-3 border-b text-right">Số Tiền</th><th class="p-3 border-b text-right">Thao Tác</th>
             </tr></thead>
             <tbody>
-                <tr v-if="!transactions.length"><td colspan="6" class="p-6 text-center text-gray-500">Chưa có giao dịch.</td></tr>
+                <tr v-if="!transactions.length"><td colspan="5" class="p-6 text-center text-gray-500">Chưa có giao dịch.</td></tr>
                 <tr v-for="t in transactions" :key="t.id" class="border-b hover:bg-gray-50">
-                    <td class="p-3 text-sm text-gray-500">[[t.created_at]]</td>
+                    <td class="p-3 text-sm text-gray-500">[[formatTransactionDate(t)]]</td>
                     <td class="p-3"><span class="px-2 py-1 text-xs rounded font-bold" :class="t.type==='IN'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'">[[t.type==='IN'?'THU NGOÀI':'CHI TIÊU']]</span></td>
-                    <td class="p-3 font-medium">[[t.category]]</td><td class="p-3 text-gray-600 text-sm">[[t.description]]</td>
+                    <td class="p-3 font-medium">[[t.category]]</td>
                     <td class="p-3 text-right font-bold" :class="t.type==='IN'?'text-green-600':'text-red-600'">[[t.type==='IN'?'+':'-']][[formatMoney(t.amount)]]đ</td>
                     <td class="p-3 text-right"><button @click="openTransModal(t)" class="text-blue-600 hover:underline mr-3 text-xs">Sửa</button><button @click="deleteTransaction(t.id)" class="text-red-600 hover:underline text-xs">Xóa</button></td>
                 </tr>
@@ -242,25 +331,34 @@
 
     <!-- INVOICE -->
     <div v-if="activeTab==='invoice'" class="bg-white p-6 rounded-lg shadow">
-        <div class="no-print flex gap-4 mb-6 items-center bg-gray-50 p-4 rounded">
-            <label class="font-medium text-sm">Lọc giao dịch:</label>
-            <select v-model="filterType" class="border rounded p-2 text-sm"><option value="all">Tất cả thời gian</option><option value="today">Hôm nay</option></select>
-            <button @click="printInvoice" class="bg-gray-800 text-white px-4 py-2 rounded text-sm ml-auto"><i class="fa-solid fa-print mr-1"></i>In Báo Cáo / Hóa Đơn</button>
+        <div class="no-print flex flex-wrap gap-3 mb-6 items-center bg-gray-50 p-4 rounded invoice-filter">
+            <label class="font-medium text-sm">Thời gian báo cáo:</label>
+            <select v-model="filterType" class="border rounded p-2 text-sm bg-white">
+                <option value="all">Tất cả thời gian</option>
+                <option value="day">Theo ngày</option>
+                <option value="week">Theo tuần</option>
+                <option value="month">Theo tháng</option>
+                <option value="year">Theo năm</option>
+            </select>
+            <input v-if="filterType==='day' || filterType==='week'" v-model="filterDate" type="date" class="border rounded p-2 text-sm bg-white">
+            <input v-else-if="filterType==='month'" v-model="filterDate" type="month" class="border rounded p-2 text-sm bg-white">
+            <input v-else-if="filterType==='year'" v-model="filterDate" type="number" min="2000" max="2100" placeholder="Năm" class="border rounded p-2 text-sm bg-white w-28">
+            <button v-if="filterType!=='all'" @click="filterDate=todayString()" class="px-3 py-2 border rounded text-sm bg-white hover:bg-gray-100">Hôm nay</button>
+            <button @click="printInvoice" class="bg-gray-800 text-white px-4 py-2 rounded text-sm ml-auto print-button"><i class="fa-solid fa-print mr-1"></i>In Báo Cáo / Hóa Đơn</button>
         </div>
         <div id="printable-area" class="p-8 border rounded max-w-2xl mx-auto bg-white">
             <div class="text-center border-b pb-4 mb-4"><h2 class="text-2xl font-bold uppercase">Báo Cáo Thu Chi Quỹ Lớp</h2><p class="text-xs text-gray-400 mt-1">Ngày xuất báo cáo: [[new Date().toLocaleDateString('vi-VN')]]</p></div>
             <table class="w-full text-left border-collapse text-sm mb-6">
-                <thead><tr class="border-b"><th class="py-2">Thời gian</th><th class="py-2">Nội dung / Mô tả</th><th class="py-2 text-right">Số tiền</th></tr></thead>
+                <thead><tr class="border-b"><th class="py-2">Ngày</th><th class="py-2">Nơi thu / chi</th><th class="py-2 text-right">Số tiền</th></tr></thead>
                 <tbody>
                     <tr v-if="!filteredTransactions.length"><td colspan="3" class="py-4 text-center text-gray-500">Chưa phát sinh giao dịch.</td></tr>
-                    <tr v-for="t in filteredTransactions" :key="t.id" class="border-b"><td class="py-2 text-gray-500">[[t.created_at]]</td><td class="py-2">[[t.description]]</td><td class="py-2 text-right font-semibold" :class="t.type==='IN'?'text-green-600':'text-red-600'">[[t.type==='IN'?'+':'-']][[formatMoney(t.amount)]]đ</td></tr>
+                    <tr v-for="t in filteredTransactions" :key="t.id" class="border-b"><td class="py-2 text-gray-500">[[formatTransactionDate(t)]]</td><td class="py-2">[[t.category]]</td><td class="py-2 text-right font-semibold" :class="t.type==='IN'?'text-green-600':'text-red-600'">[[t.type==='IN'?'+':'-']][[formatMoney(t.amount)]]đ</td></tr>
                 </tbody>
             </table>
             <div class="border-t pt-4 text-right">
-                <p class="text-sm">Tổng thu quỹ các đợt: <span class="font-bold text-green-600">+[[formatMoney(totalCampaignCollected)]]đ</span></p>
-                <p class="text-sm">Tổng thu nguồn ngoài: <span class="font-bold text-green-600">+[[formatMoney(totalOtherIn)]]đ</span></p>
-                <p class="text-sm">Tổng chi tiêu: <span class="font-bold text-red-600">-[[formatMoney(summary.total_out)]]đ</span></p>
-                <p class="text-lg font-bold mt-2">Cân đối tồn quỹ: [[formatMoney(summary.balance)]]đ</p>
+                <p class="text-sm">Tổng thu trong kỳ: <span class="font-bold text-green-600">+[[formatMoney(filteredTotalIn)]]đ</span></p>
+                <p class="text-sm">Tổng chi trong kỳ: <span class="font-bold text-red-600">-[[formatMoney(filteredTotalOut)]]đ</span></p>
+                <p class="text-lg font-bold mt-2">Chênh lệch trong kỳ: [[formatMoney(filteredBalance)]]đ</p>
             </div>
         </div>
     </div>
@@ -290,13 +388,17 @@
             <h3 class="font-bold text-lg mb-4">[[transForm.id?'Sửa':'Thêm']] Giao Dịch</h3>
             <label class="block text-xs font-semibold text-gray-500 mb-1">Loại giao dịch:</label>
             <select v-model="transForm.type" class="w-full border rounded p-2 mb-3 text-sm font-semibold"><option value="IN">Thu Ngoài Quỹ (+)</option><option value="OUT">Chi Tiêu Quỹ (-)</option></select>
-            <input v-model="transForm.category" type="text" placeholder="Danh mục" class="w-full border rounded p-2 mb-3 text-sm">
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Nơi thu / chi:</label>
+            <input v-model="transForm.category" type="text" placeholder="VD: Tài trợ, mua văn phòng phẩm..." class="w-full border rounded p-2 mb-3 text-sm">
             <label class="block text-xs font-semibold text-gray-500 mb-1">Số tiền (VNĐ):</label>
             <input :value="transForm.formattedAmount" @input="onTransAmountInput" type="text" placeholder="VD: 500.000" class="w-full border rounded p-2 mb-3 text-sm font-bold">
-            <textarea v-model="transForm.description" placeholder="Mô tả" class="w-full border rounded p-2 mb-4 text-sm h-20"></textarea>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Ngày thu / chi:</label>
+            <input v-model="transForm.transaction_date" type="date" class="w-full border rounded p-2 mb-4 text-sm">
             <div class="flex justify-end gap-2"><button @click="showAddTransModal=false" class="px-4 py-2 border rounded text-sm">Hủy</button><button @click="saveTransaction" class="px-4 py-2 bg-blue-600 text-white rounded text-sm">Lưu Giao Dịch</button></div>
         </div>
     </div>
+
+
 </div>
 
 <script>
@@ -348,13 +450,16 @@ createApp({
             campaignForm: { id:null, title:'', amount_per_member:0, formattedAmount:'' },
 
             showAddTransModal: false,
-            transForm: { id:null, type:'IN', category:'', amount:0, formattedAmount:'', description:'' },
+            transForm: { id:null, type:'IN', category:'', amount:0, formattedAmount:'', transaction_date:'' },
 
             filterType: 'all',
+            filterDate: '',
 
             // Chặn việc Firebase đọc dữ liệu cũ ghi đè ngay sau khi vừa lưu.
             isSyncing: false,
-            syncTimer: null
+            syncTimer: null,
+            pendingSync: false,
+
         };
     },
 
@@ -403,19 +508,63 @@ createApp({
         },
 
         filteredTransactions() {
+            const target = this.filterDate || this.todayString();
             if(this.filterType==='all') return this.transactions;
-            const todayStr=new Date().toISOString().split('T')[0];
-            return this.transactions.filter(t => t.created_at && t.created_at.startsWith(todayStr));
+
+            return this.transactions.filter(t => {
+                const date = t.transaction_date || '';
+                if(!date) return false;
+                if(this.filterType==='day') return date === target;
+
+                const d = new Date(date + 'T00:00:00');
+                if(Number.isNaN(d.getTime())) return false;
+
+                if(this.filterType==='week') {
+                    const start = new Date(target + 'T00:00:00');
+                    const day = start.getDay();
+                    const diff = day === 0 ? -6 : 1 - day;
+                    start.setDate(start.getDate() + diff);
+                    const end = new Date(start);
+                    end.setDate(start.getDate() + 6);
+                    return d >= start && d <= end;
+                }
+                if(this.filterType==='month') {
+                    const [y,m] = target.split('-').map(Number);
+                    return d.getFullYear() === y && d.getMonth() + 1 === m;
+                }
+                if(this.filterType==='year') {
+                    return d.getFullYear() === Number(target);
+                }
+                return true;
+            });
+        },
+
+        filteredTotalIn() {
+            return this.filteredTransactions.filter(t=>t.type==='IN').reduce((s,t)=>s+(Number(t.amount)||0),0);
+        },
+
+        filteredTotalOut() {
+            return this.filteredTransactions.filter(t=>t.type==='OUT').reduce((s,t)=>s+(Number(t.amount)||0),0);
+        },
+
+        filteredBalance() {
+            return this.filteredTotalIn - this.filteredTotalOut;
         }
     },
 
     async mounted() {
+        this.filterDate=this.todayString();
         this.loadLocalData();
-        await this.fetchDataFromFirebase();
 
-        // Đồng bộ đọc định kỳ nhưng không được phép ghi đè trong lúc đang PUT.
+        // Nếu lần lưu trước chưa đồng bộ được Firebase, ưu tiên dữ liệu local và thử đồng bộ lại.
+        if(this.pendingSync) {
+            await this.syncData();
+        } else {
+            await this.fetchDataFromFirebase();
+        }
+
         this.syncTimer=setInterval(() => {
-            if(!this.isSyncing) this.fetchDataFromFirebase();
+            if(!this.isSyncing && !this.pendingSync) this.fetchDataFromFirebase();
         },5000);
     },
 
@@ -436,6 +585,11 @@ createApp({
             return 'bg-blue-600 text-white font-bold';
         },
 
+        todayString() {
+            const d=new Date();
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        },
+
         formatMoney(val) {
             if(!val) return '0';
             return Number(val).toLocaleString('vi-VN');
@@ -450,6 +604,7 @@ createApp({
                     this.campaigns=Array.isArray(data.campaigns) ? data.campaigns : [];
                     this.paidStatuses=data.paidStatuses && typeof data.paidStatuses==='object' ? data.paidStatuses : {};
                     this.transactions=Array.isArray(data.transactions) ? data.transactions : [];
+                    this.pendingSync=!!data.pendingSync;
                     if(this.campaigns.length) this.selectedCampaignId=this.campaigns[0].id;
                     return;
                 } catch(e) {
@@ -460,6 +615,7 @@ createApp({
             this.campaigns=[];
             this.paidStatuses={};
             this.transactions=[];
+            this.pendingSync=false;
         },
 
         saveLocalData() {
@@ -467,12 +623,13 @@ createApp({
                 members:this.members,
                 campaigns:this.campaigns,
                 paidStatuses:this.paidStatuses,
-                transactions:this.transactions
+                transactions:this.transactions,
+                pendingSync:this.pendingSync
             }));
         },
 
         async fetchDataFromFirebase() {
-            if(this.isSyncing) return;
+            if(this.isSyncing || this.pendingSync) return;
 
             try {
                 const res=await fetch(FIREBASE_URL + '?t=' + Date.now(), {
@@ -497,6 +654,7 @@ createApp({
                     this.selectedCampaignId=this.campaigns[0].id;
                 }
 
+                this.pendingSync=false;
                 this.saveLocalData();
             } catch(e) {
                 console.log('Sử dụng dữ liệu offline local:',e.message);
@@ -504,7 +662,8 @@ createApp({
         },
 
         async syncData() {
-            // Lưu trước vào máy để F5 không mất dữ liệu nếu mạng có vấn đề.
+            // Đánh dấu thay đổi cục bộ trước khi gửi Firebase. Nếu mạng lỗi, lần mở sau sẽ không lấy dữ liệu cũ ghi đè.
+            this.pendingSync=true;
             this.saveLocalData();
 
             this.isSyncing=true;
@@ -526,6 +685,7 @@ createApp({
                 if(!res.ok) throw new Error('Firebase HTTP '+res.status);
 
                 // Firebase đã xác nhận lưu thành công.
+                this.pendingSync=false;
                 this.saveLocalData();
             } catch(e) {
                 console.error('Lỗi đồng bộ Firebase:',e);
@@ -706,16 +866,35 @@ createApp({
             return this.sortedMembers;
         },
 
+        todayInputDate() {
+            const d=new Date();
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        },
+
+        formatTransactionDate(t) {
+            if(t && t.transaction_date) {
+                const [y,m,d]=t.transaction_date.split('-');
+                if(y && m && d) return `${d}/${m}/${y}`;
+            }
+            // Dữ liệu cũ vẫn giữ nguyên nếu chưa có transaction_date.
+            return t && t.created_at ? String(t.created_at).split(' ')[0] : '';
+        },
+
         openTransModal(trans=null) {
             if(trans) {
+                let transactionDate=trans.transaction_date || '';
+                if(!transactionDate && trans.created_at) {
+                    const match=String(trans.created_at).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                    if(match) transactionDate=`${match[3]}-${String(match[2]).padStart(2,'0')}-${String(match[1]).padStart(2,'0')}`;
+                }
                 this.transForm={
-                    id:trans.id,type:trans.type,category:trans.category,
+                    id:trans.id,type:trans.type,category:trans.category || '',
                     amount:Number(trans.amount)||0,
                     formattedAmount:this.formatMoney(trans.amount),
-                    description:trans.description
+                    transaction_date:transactionDate || this.todayInputDate()
                 };
             } else {
-                this.transForm={id:null,type:'IN',category:'',amount:0,formattedAmount:'',description:''};
+                this.transForm={id:null,type:'IN',category:'',amount:0,formattedAmount:'',transaction_date:this.todayInputDate()};
             }
             this.showAddTransModal=true;
         },
@@ -727,7 +906,9 @@ createApp({
         },
 
         async saveTransaction() {
-            if(!this.transForm.amount || !this.transForm.category.trim()) return;
+            if(!this.transForm.amount || !this.transForm.category.trim() || !this.transForm.transaction_date) return;
+
+            const displayDate=this.formatTransactionDate({transaction_date:this.transForm.transaction_date});
 
             if(this.transForm.id) {
                 const idx=this.transactions.findIndex(t=>t.id===this.transForm.id);
@@ -735,22 +916,20 @@ createApp({
                     this.transactions[idx]={
                         ...this.transactions[idx],
                         type:this.transForm.type,
-                        category:this.transForm.category,
+                        category:this.transForm.category.trim(),
                         amount:this.transForm.amount,
-                        description:this.transForm.description
+                        transaction_date:this.transForm.transaction_date,
+                        created_at:displayDate
                     };
                 }
             } else {
-                const now=new Date();
-                const timeStr=`${now.toLocaleDateString('vi-VN')} ${now.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}`;
-
                 this.transactions.unshift({
                     id:Date.now(),
-                    created_at:timeStr,
+                    created_at:displayDate,
+                    transaction_date:this.transForm.transaction_date,
                     type:this.transForm.type,
-                    category:this.transForm.category,
-                    amount:this.transForm.amount,
-                    description:this.transForm.description
+                    category:this.transForm.category.trim(),
+                    amount:this.transForm.amount
                 });
             }
 
