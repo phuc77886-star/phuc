@@ -139,7 +139,7 @@
             </table>
         </div>
 
-        <!-- TAB 2: ĐỢT THU QUỸ (ĐÃ TÁCH THÀNH CÁC MỤC/TAB RIÊNG) -->
+        <!-- TAB 2: ĐỢT THU QUỸ -->
         <div v-if="activeTab === 'campaigns'" class="bg-white p-6 rounded-lg shadow">
             <div class="flex justify-between items-center mb-4">
                 <div>
@@ -155,7 +155,7 @@
                 Chưa có đợt thu quỹ nào. Bấm "Tạo Đợt Thu Mới" để bắt đầu!
             </div>
 
-            <!-- DANH SÁCH CÁC ĐỢT THU DẠNG NÚT CHỌN (TÁCH BIỆT RÕ RÀNG) -->
+            <!-- DANH SÁCH CÁC ĐỢT THU DẠNG NÚT CHỌN -->
             <div v-if="campaigns.length > 0" class="flex gap-2 overflow-x-auto pb-2 mb-6 border-b">
                 <button v-for="c in campaigns" :key="c.id" 
                         @click="selectedCampaignId = c.id"
@@ -165,7 +165,7 @@
                 </button>
             </div>
 
-            <!-- CHỈ HIỂN THỊ CHI TIẾT 1 ĐỢT THU ĐƯỢC CHỌN -->
+            <!-- CHI TIẾT 1 ĐỢT THU ĐƯỢC CHỌN -->
             <div v-if="currentCampaign" class="border rounded-lg p-5 bg-gray-50 shadow-sm">
                 <div class="flex justify-between items-center border-b pb-4 mb-4">
                     <div>
@@ -182,7 +182,7 @@
                     </div>
                 </div>
 
-                <!-- BỘ LỌC HỌC SINH CỦA ĐỢT THU HIỆN TẠI -->
+                <!-- BỘ LỌC HỌC SINH -->
                 <div class="flex items-center justify-between mb-4 bg-white p-3 rounded-lg border">
                     <div class="flex gap-2 items-center flex-wrap">
                         <span class="text-xs font-bold text-gray-600 mr-2"><i class="fa-solid fa-filter"></i> Lọc danh sách:</span>
@@ -468,10 +468,13 @@
                     return this.transactions.filter(t => t.created_at.startsWith(todayStr));
                 }
             },
-            mounted() {
+            async mounted() {
+                // Tải từ LocalStorage trước để F5 có dữ liệu tức thì
                 this.loadLocalData();
-                this.fetchDataFromFirebase();
-                setInterval(this.fetchDataFromFirebase, 3000);
+                // Sau đó lấy dữ liệu đám mây Firebase mới nhất
+                await this.fetchDataFromFirebase();
+                // Tự động kiểm tra đồng bộ mỗi 5 giây
+                setInterval(this.fetchDataFromFirebase, 5000);
             },
             methods: {
                 formatMoney(val) {
@@ -483,7 +486,9 @@
                     if (local) {
                         try {
                             const data = JSON.parse(local);
-                            this.members = data.members || DEFAULT_MEMBERS;
+                            if (data.members && data.members.length > 0) this.members = data.members;
+                            else this.members = DEFAULT_MEMBERS;
+                            
                             this.campaigns = data.campaigns || [];
                             this.paidStatuses = data.paidStatuses || {};
                             this.transactions = data.transactions || [];
@@ -510,17 +515,20 @@
                             if (data) {
                                 if (data.members && data.members.length > 0) this.members = data.members;
                                 if (data.campaigns) this.campaigns = data.campaigns;
+                                // Giữ lại trạng thái đóng tiền nếu Firebase có dữ liệu
                                 if (data.paidStatuses) this.paidStatuses = data.paidStatuses;
                                 if (data.transactions) this.transactions = data.transactions;
                                 this.saveLocalData();
                             }
                         }
                     } catch (e) {
-                        console.log("Sử dụng dữ liệu offline");
+                        console.log("Sử dụng dữ liệu offline local");
                     }
                 },
                 async syncData() {
+                    // Lưu offline ngay lập tức
                     this.saveLocalData();
+                    // Đẩy lên đám mây Firebase
                     try {
                         await fetch(FIREBASE_URL, {
                             method: 'PUT',
@@ -533,7 +541,7 @@
                             })
                         });
                     } catch (e) {
-                        console.error("Lỗi đồng bộ", e);
+                        console.error("Lỗi đồng bộ Firebase", e);
                     }
                 },
                 // Member management
@@ -545,7 +553,7 @@
                     }
                     this.showAddMemberModal = true;
                 },
-                saveMember() {
+                async saveMember() {
                     if (!this.memberForm.full_name.trim()) return;
                     if (this.memberForm.id) {
                         const idx = this.members.findIndex(m => m.id === this.memberForm.id);
@@ -558,13 +566,13 @@
                         });
                     }
                     this.showAddMemberModal = false;
-                    this.syncData();
+                    await this.syncData();
                 },
-                deleteMember(id) {
+                async deleteMember(id) {
                     if (confirm('Bạn có chắc muốn xóa thành viên này?')) {
                         this.members = this.members.filter(m => m.id !== id);
                         this.selectedMemberIds = this.selectedMemberIds.filter(mId => mId !== id);
-                        this.syncData();
+                        await this.syncData();
                     }
                 },
                 toggleSelectAll() {
@@ -574,18 +582,18 @@
                         this.selectedMemberIds = this.members.map(m => m.id);
                     }
                 },
-                bulkDeleteMembers() {
+                async bulkDeleteMembers() {
                     if (confirm(`Bạn có chắc muốn xóa ${this.selectedMemberIds.length} học sinh đã chọn?`)) {
                         this.members = this.members.filter(m => !this.selectedMemberIds.includes(m.id));
                         this.selectedMemberIds = [];
-                        this.syncData();
+                        await this.syncData();
                     }
                 },
                 importExcel(e) {
                     const file = e.target.files[0];
                     if (!file) return;
                     const reader = new FileReader();
-                    reader.onload = (evt) => {
+                    reader.onload = async (evt) => {
                         try {
                             const bstr = evt.target.result;
                             const wb = XLSX.read(bstr, { type: 'binary' });
@@ -607,7 +615,7 @@
                             });
                             if (imported.length > 0) {
                                 this.members = imported;
-                                this.syncData();
+                                await this.syncData();
                                 alert(`Đã nhập thành công ${imported.length} thành viên!`);
                             }
                         } catch (err) {
@@ -636,7 +644,7 @@
                     this.campaignForm.amount_per_member = Number(raw) || 0;
                     this.campaignForm.formattedAmount = this.formatMoney(raw);
                 },
-                saveCampaign() {
+                async saveCampaign() {
                     if (!this.campaignForm.title.trim()) return;
                     if (this.campaignForm.id) {
                         const idx = this.campaigns.findIndex(c => c.id === this.campaignForm.id);
@@ -654,28 +662,31 @@
                         this.selectedCampaignId = newId;
                     }
                     this.showAddCampaignModal = false;
-                    this.syncData();
+                    await this.syncData();
                 },
-                deleteCampaign(id) {
+                async deleteCampaign(id) {
                     if (confirm('Xóa đợt thu này sẽ mất lịch sử thu quỹ tương ứng?')) {
                         this.campaigns = this.campaigns.filter(c => c.id !== id);
                         delete this.paidStatuses[id];
                         if (this.selectedCampaignId === id) {
                             this.selectedCampaignId = this.campaigns.length > 0 ? this.campaigns[0].id : null;
                         }
-                        this.syncData();
+                        await this.syncData();
                     }
                 },
                 isPaid(campaignId, memberId) {
                     return !!(this.paidStatuses[campaignId] && this.paidStatuses[campaignId][memberId]);
                 },
-                togglePaidStatus(campaignId, memberId) {
+                async togglePaidStatus(campaignId, memberId) {
                     if (!this.paidStatuses[campaignId]) {
                         this.paidStatuses[campaignId] = {};
                     }
+                    // Đổi trạng thái đóng tiền
                     this.paidStatuses[campaignId][memberId] = !this.paidStatuses[campaignId][memberId];
+                    // Gán lại Object mới để Vue nhận biết sự thay đổi sâu (Reactivity)
                     this.paidStatuses = { ...this.paidStatuses };
-                    this.syncData();
+                    // Đợi lưu offline & đẩy trực tiếp lên Firebase
+                    await this.syncData();
                 },
                 getPaidCount(campaignId) {
                     if (!this.paidStatuses[campaignId]) return 0;
@@ -716,7 +727,7 @@
                     this.transForm.amount = Number(raw) || 0;
                     this.transForm.formattedAmount = this.formatMoney(raw);
                 },
-                saveTransaction() {
+                async saveTransaction() {
                     if (!this.transForm.amount || !this.transForm.category.trim()) return;
                     if (this.transForm.id) {
                         const idx = this.transactions.findIndex(t => t.id === this.transForm.id);
@@ -742,12 +753,12 @@
                         });
                     }
                     this.showAddTransModal = false;
-                    this.syncData();
+                    await this.syncData();
                 },
-                deleteTransaction(id) {
+                async deleteTransaction(id) {
                     if (confirm('Bạn có chắc muốn xóa giao dịch này?')) {
                         this.transactions = this.transactions.filter(t => t.id !== id);
-                        this.syncData();
+                        await this.syncData();
                     }
                 },
                 printInvoice() {
