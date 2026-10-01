@@ -64,7 +64,7 @@
             </div>
         </div>
 
-        <!-- Navigation Tabs -->
+        <!-- Navigation Tabs chính -->
         <div class="flex border-b border-gray-300 mb-6 bg-white rounded-t-lg overflow-hidden shadow-sm">
             <button @click="activeTab = 'members'" :class="{'bg-blue-50 text-blue-600 border-b-2 border-blue-600 font-bold': activeTab==='members'}" class="px-5 py-3 text-gray-600 hover:bg-gray-50 text-sm">
                 <i class="fa-solid fa-user-graduate mr-2"></i>Thành Viên Lớp
@@ -139,64 +139,83 @@
             </table>
         </div>
 
-        <!-- TAB 2: ĐỢT THU QUỸ -->
+        <!-- TAB 2: ĐỢT THU QUỸ (ĐÃ TÁCH THÀNH CÁC MỤC/TAB RIÊNG) -->
         <div v-if="activeTab === 'campaigns'" class="bg-white p-6 rounded-lg shadow">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-bold text-gray-700">Quản Lý Các Đợt Thu Quỹ Học Sinh</h2>
-                <button @click="openCampaignModal()" class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 text-sm">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-700">Quản Lý Thu Quỹ Học Sinh</h2>
+                    <p class="text-xs text-gray-500">Chọn đợt thu bên dưới để theo dõi chi tiết từng đợt riêng biệt</p>
+                </div>
+                <button @click="openCampaignModal()" class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 text-sm font-medium">
                     <i class="fa-solid fa-plus mr-1"></i>Tạo Đợt Thu Mới
                 </button>
             </div>
 
-            <div v-if="campaigns.length === 0" class="text-center py-8 text-gray-500 text-sm">
+            <div v-if="campaigns.length === 0" class="text-center py-10 bg-gray-50 rounded-lg border border-dashed text-gray-500 text-sm">
                 Chưa có đợt thu quỹ nào. Bấm "Tạo Đợt Thu Mới" để bắt đầu!
             </div>
 
-            <div v-if="campaigns.length > 0" class="flex gap-2 overflow-x-auto pb-3 mb-4 border-b">
+            <!-- DANH SÁCH CÁC ĐỢT THU DẠNG NÚT CHỌN (TÁCH BIỆT RÕ RÀNG) -->
+            <div v-if="campaigns.length > 0" class="flex gap-2 overflow-x-auto pb-2 mb-6 border-b">
                 <button v-for="c in campaigns" :key="c.id" 
                         @click="selectedCampaignId = c.id"
-                        :class="selectedCampaignId === c.id ? 'bg-blue-600 text-white font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-                        class="px-4 py-2 rounded-lg text-sm whitespace-nowrap transition flex items-center gap-2">
-                    <i class="fa-solid fa-folder-closed"></i> [[ c.title ]]
+                        :class="selectedCampaignId === c.id ? 'bg-blue-600 text-white font-bold shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                        class="px-4 py-2.5 rounded-lg text-sm whitespace-nowrap transition flex items-center gap-2 border">
+                    <i class="fa-solid fa-folder"></i> [[ c.title ]]
                 </button>
             </div>
 
-            <div v-for="c in activeCampaignList" :key="c.id" class="border rounded-lg p-4 bg-gray-50 shadow-sm">
-                <div class="flex justify-between items-center border-b pb-3 mb-3">
+            <!-- CHỈ HIỂN THỊ CHI TIẾT 1 ĐỢT THU ĐƯỢC CHỌN -->
+            <div v-if="currentCampaign" class="border rounded-lg p-5 bg-gray-50 shadow-sm">
+                <div class="flex justify-between items-center border-b pb-4 mb-4">
                     <div>
-                        <h3 class="font-bold text-lg text-blue-800 flex items-center gap-2">
-                            [[ c.title ]]
-                            <button @click="openCampaignModal(c)" class="text-xs text-blue-600 hover:underline font-normal"><i class="fa-solid fa-pen"></i> Sửa</button>
-                            <button @click="deleteCampaign(c.id)" class="text-xs text-red-500 hover:underline font-normal"><i class="fa-solid fa-trash"></i> Xóa</button>
+                        <h3 class="font-bold text-xl text-blue-800 flex items-center gap-2">
+                            [[ currentCampaign.title ]]
+                            <button @click="openCampaignModal(currentCampaign)" class="text-xs text-blue-600 hover:underline font-normal ml-2"><i class="fa-solid fa-pen"></i> Sửa đợt thu</button>
+                            <button @click="deleteCampaign(currentCampaign.id)" class="text-xs text-red-500 hover:underline font-normal"><i class="fa-solid fa-trash"></i> Xóa đợt thu</button>
                         </h3>
-                        <p class="text-sm text-gray-600">Mức đóng/học sinh: <span class="font-bold text-red-600">[[ formatMoney(c.amount_per_member) ]]đ</span></p>
+                        <p class="text-sm text-gray-600 mt-1">Mức đóng/học sinh: <span class="font-bold text-red-600">[[ formatMoney(currentCampaign.amount_per_member) ]]đ</span></p>
                     </div>
-                    <div class="text-right bg-blue-50 px-3 py-1.5 rounded border border-blue-200">
+                    <div class="text-right bg-white p-3 rounded-lg border shadow-sm">
                         <span class="text-xs text-gray-500 block">Đã thu đợt này</span>
-                        <span class="text-base font-bold text-green-600">[[ formatMoney(getCampaignCollectedAmount(c)) ]]đ</span>
+                        <span class="text-lg font-bold text-green-600">[[ formatMoney(getCampaignCollectedAmount(currentCampaign)) ]]đ</span>
                     </div>
                 </div>
 
-                <div class="flex items-center justify-between mb-3 bg-white p-2 rounded border">
-                    <div class="flex gap-2 items-center">
+                <!-- BỘ LỌC HỌC SINH CỦA ĐỢT THU HIỆN TẠI -->
+                <div class="flex items-center justify-between mb-4 bg-white p-3 rounded-lg border">
+                    <div class="flex gap-2 items-center flex-wrap">
                         <span class="text-xs font-bold text-gray-600 mr-2"><i class="fa-solid fa-filter"></i> Lọc danh sách:</span>
-                        <button @click="statusFilter[c.id] = 'all'" :class="(!statusFilter[c.id] || statusFilter[c.id]==='all') ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'" class="px-3 py-1 rounded text-xs font-medium">Tất cả ([[ sortedMembers.length ]])</button>
-                        <button @click="statusFilter[c.id] = 'paid'" :class="statusFilter[c.id]==='paid' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'" class="px-3 py-1 rounded text-xs font-medium">Đã đóng ([[ getPaidCount(c.id) ]])</button>
-                        <button @click="statusFilter[c.id] = 'unpaid'" :class="statusFilter[c.id]==='unpaid' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700'" class="px-3 py-1 rounded text-xs font-medium">Chưa đóng ([[ sortedMembers.length - getPaidCount(c.id) ]])</button>
+                        <button @click="statusFilter[currentCampaign.id] = 'all'" 
+                                :class="(!statusFilter[currentCampaign.id] || statusFilter[currentCampaign.id]==='all') ? 'bg-blue-600 text-white font-bold' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'" 
+                                class="px-3 py-1.5 rounded text-xs">
+                            Tất cả ([[ sortedMembers.length ]])
+                        </button>
+                        <button @click="statusFilter[currentCampaign.id] = 'paid'" 
+                                :class="statusFilter[currentCampaign.id]==='paid' ? 'bg-green-600 text-white font-bold' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'" 
+                                class="px-3 py-1.5 rounded text-xs">
+                            ✓ Đã đóng ([[ getPaidCount(currentCampaign.id) ]])
+                        </button>
+                        <button @click="statusFilter[currentCampaign.id] = 'unpaid'" 
+                                :class="statusFilter[currentCampaign.id]==='unpaid' ? 'bg-red-600 text-white font-bold' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'" 
+                                class="px-3 py-1.5 rounded text-xs">
+                            ✕ Chưa đóng ([[ sortedMembers.length - getPaidCount(currentCampaign.id) ]])
+                        </button>
                     </div>
                 </div>
 
+                <!-- LƯỚI HỌC SINH -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <div v-for="m in filteredMembersForCampaign(c.id)" :key="m.id" 
-                         class="p-3 bg-white rounded border flex justify-between items-center shadow-sm">
+                    <div v-for="m in filteredMembersForCampaign(currentCampaign.id)" :key="m.id" 
+                         class="p-3 bg-white rounded-lg border flex justify-between items-center shadow-sm hover:border-blue-300 transition">
                         <div>
-                            <p class="font-medium text-sm">[[ m.full_name ]]</p>
+                            <p class="font-semibold text-sm text-gray-800">[[ m.full_name ]]</p>
                             <p class="text-xs text-gray-400">[[ m.role ]]</p>
                         </div>
-                        <button @click="togglePaidStatus(c.id, m.id)" 
-                                :class="isPaid(c.id, m.id) ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'"
-                                class="px-3 py-1 text-xs rounded-full font-bold transition cursor-pointer">
-                            [[ isPaid(c.id, m.id) ? '✓ Đã đóng' : 'Chưa đóng' ]]
+                        <button @click="togglePaidStatus(currentCampaign.id, m.id)" 
+                                :class="isPaid(currentCampaign.id, m.id) ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border'"
+                                class="px-3 py-1.5 text-xs rounded-full font-bold transition cursor-pointer flex items-center gap-1">
+                            [[ isPaid(currentCampaign.id, m.id) ? '✓ Đã đóng' : 'Chưa đóng' ]]
                         </button>
                     </div>
                 </div>
@@ -301,7 +320,7 @@
             </div>
         </div>
 
-        <!-- MODAL THÀNH VIÊN -->
+        <!-- MODALS -->
         <div v-if="showAddMemberModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-lg p-6 max-w-md w-full">
                 <h3 class="font-bold text-lg mb-4">[[ memberForm.id ? 'Sửa' : 'Thêm' ]] Thành Viên</h3>
@@ -314,11 +333,10 @@
             </div>
         </div>
 
-        <!-- MODAL TẠO / SỬA ĐỢT THU QUỸ -->
         <div v-if="showAddCampaignModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-lg p-6 max-w-md w-full">
                 <h3 class="font-bold text-lg mb-4">[[ campaignForm.id ? 'Sửa' : 'Tạo' ]] Đợt Thu Quỹ</h3>
-                <input v-model="campaignForm.title" type="text" placeholder="Tên đợt thu (VD: Quỹ Học Kỳ I)" class="w-full border rounded p-2 mb-3 text-sm">
+                <input v-model="campaignForm.title" type="text" placeholder="Tên đợt thu (VD: Thu Đợt 1 - Học Kỳ I)" class="w-full border rounded p-2 mb-3 text-sm">
                 <label class="block text-xs font-semibold text-gray-500 mb-1">Số tiền mỗi thành viên (VNĐ):</label>
                 <input :value="campaignForm.formattedAmount" @input="onCampaignAmountInput" type="text" placeholder="VD: 100.000" class="w-full border rounded p-2 mb-4 text-sm font-bold text-red-600">
                 <div class="flex justify-end gap-2">
@@ -328,7 +346,6 @@
             </div>
         </div>
 
-        <!-- MODAL TẠO / SỬA GIAO DỊCH THU NGOÀI VÀ CHI TIÊU -->
         <div v-if="showAddTransModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-lg p-6 max-w-md w-full">
                 <h3 class="font-bold text-lg mb-4">[[ transForm.id ? 'Sửa' : 'Thêm' ]] Giao Dịch</h3>
@@ -413,11 +430,11 @@
                         return cmp !== 0 ? cmp : pA.rest.localeCompare(pB.rest, 'vi');
                     });
                 },
-                activeCampaignList() {
+                currentCampaign() {
                     if (!this.selectedCampaignId && this.campaigns.length > 0) {
                         this.selectedCampaignId = this.campaigns[0].id;
                     }
-                    return this.campaigns.filter(c => c.id === this.selectedCampaignId);
+                    return this.campaigns.find(c => c.id === this.selectedCampaignId) || null;
                 },
                 isAllSelected() {
                     return this.members.length > 0 && this.selectedMemberIds.length === this.members.length;
@@ -492,9 +509,9 @@
                             const data = await res.json();
                             if (data) {
                                 if (data.members && data.members.length > 0) this.members = data.members;
-                                this.campaigns = data.campaigns || [];
-                                this.paidStatuses = data.paidStatuses || {};
-                                this.transactions = data.transactions || [];
+                                if (data.campaigns) this.campaigns = data.campaigns;
+                                if (data.paidStatuses) this.paidStatuses = data.paidStatuses;
+                                if (data.transactions) this.transactions = data.transactions;
                                 this.saveLocalData();
                             }
                         }
@@ -576,10 +593,9 @@
                             const ws = wb.Sheets[wsname];
                             const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
                             
-                            // Lấy danh sách tên từ file Excel
                             const imported = [];
                             data.forEach((row, i) => {
-                                if (i === 0 && (row[0] === 'STT' || row[0] === 'Họ và Tên')) return; // Skip header
+                                if (i === 0 && (row[0] === 'STT' || row[0] === 'Họ và Tên')) return;
                                 const name = row[1] || row[0];
                                 if (name && typeof name === 'string' && name.trim()) {
                                     imported.push({
@@ -658,6 +674,7 @@
                         this.paidStatuses[campaignId] = {};
                     }
                     this.paidStatuses[campaignId][memberId] = !this.paidStatuses[campaignId][memberId];
+                    this.paidStatuses = { ...this.paidStatuses };
                     this.syncData();
                 },
                 getPaidCount(campaignId) {
