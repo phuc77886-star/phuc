@@ -139,7 +139,7 @@
             </table>
         </div>
 
-        <!-- TAB 2: ĐỢT THU QUỸ (TÁCH RIÊNG CÁC MỤC) -->
+        <!-- TAB 2: ĐỢT THU QUỸ -->
         <div v-if="activeTab === 'campaigns'" class="bg-white p-6 rounded-lg shadow">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-lg font-bold text-gray-700">Quản Lý Các Đợt Thu Quỹ Học Sinh</h2>
@@ -152,7 +152,6 @@
                 Chưa có đợt thu quỹ nào. Bấm "Tạo Đợt Thu Mới" để bắt đầu!
             </div>
 
-            <!-- THANH CHỌN TỪNG ĐỢT THU RIÊNG BIỆT -->
             <div v-if="campaigns.length > 0" class="flex gap-2 overflow-x-auto pb-3 mb-4 border-b">
                 <button v-for="c in campaigns" :key="c.id" 
                         @click="selectedCampaignId = c.id"
@@ -162,7 +161,6 @@
                 </button>
             </div>
 
-            <!-- NỘI DUNG ĐỢT THU ĐƯỢC CHỌN -->
             <div v-for="c in activeCampaignList" :key="c.id" class="border rounded-lg p-4 bg-gray-50 shadow-sm">
                 <div class="flex justify-between items-center border-b pb-3 mb-3">
                     <div>
@@ -179,7 +177,6 @@
                     </div>
                 </div>
 
-                <!-- BỘ LỌC ĐÃ ĐÓNG / CHƯA ĐÓNG -->
                 <div class="flex items-center justify-between mb-3 bg-white p-2 rounded border">
                     <div class="flex gap-2 items-center">
                         <span class="text-xs font-bold text-gray-600 mr-2"><i class="fa-solid fa-filter"></i> Lọc danh sách:</span>
@@ -189,7 +186,6 @@
                     </div>
                 </div>
 
-                <!-- DANH SÁCH THÀNH VIÊN -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     <div v-for="m in filteredMembersForCampaign(c.id)" :key="m.id" 
                          class="p-3 bg-white rounded border flex justify-between items-center shadow-sm">
@@ -461,6 +457,10 @@
                 setInterval(this.fetchDataFromFirebase, 3000);
             },
             methods: {
+                formatMoney(val) {
+                    if (!val) return '0';
+                    return Number(val).toLocaleString('vi-VN');
+                },
                 loadLocalData() {
                     const local = localStorage.getItem('quy_lop_data');
                     if (local) {
@@ -519,107 +519,7 @@
                         console.error("Lỗi đồng bộ", e);
                     }
                 },
-                formatMoney(val) {
-                    return new Intl.NumberFormat('vi-VN').format(val || 0);
-                },
-                formatNumberWithDots(val) {
-                    let clean = val.toString().replace(/\D/g, '');
-                    if (!clean) return '';
-                    return clean.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-                },
-                parseNumberFromDots(val) {
-                    return parseInt(val.toString().replace(/\./g, ''), 10) || 0;
-                },
-                onCampaignAmountInput(e) {
-                    const formatted = this.formatNumberWithDots(e.target.value);
-                    this.campaignForm.formattedAmount = formatted;
-                    this.campaignForm.amount_per_member = this.parseNumberFromDots(formatted);
-                },
-                onTransAmountInput(e) {
-                    const formatted = this.formatNumberWithDots(e.target.value);
-                    this.transForm.formattedAmount = formatted;
-                    this.transForm.amount = this.parseNumberFromDots(formatted);
-                },
-                importExcel(e) {
-                    const file = e.target.files[0];
-                    if (!file) return;
-
-                    const reader = new FileReader();
-                    reader.onload = (evt) => {
-                        try {
-                            const data = evt.target.result;
-                            const workbook = XLSX.read(data, { type: 'binary' });
-                            const firstSheet = workbook.SheetNames[0];
-                            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { header: 1 });
-
-                            let countAdded = 0;
-                            rows.forEach((row, idx) => {
-                                if (idx === 0) return;
-                                if (row.length > 0 && row[0]) {
-                                    const fullName = row[0].toString().trim();
-                                    const role = row[1] ? row[1].toString().trim() : 'Thành viên';
-                                    
-                                    if (fullName && !this.members.some(m => m.full_name === fullName)) {
-                                        this.members.push({
-                                            id: Date.now() + Math.random(),
-                                            full_name: fullName,
-                                            role: role
-                                        });
-                                        countAdded++;
-                                    }
-                                }
-                            });
-
-                            this.syncData();
-                            alert(`Đã thêm ${countAdded} học sinh từ Excel!`);
-                            this.$refs.excelInput.value = '';
-                        } catch (err) {
-                            alert("Lỗi khi đọc file Excel!");
-                        }
-                    };
-                    reader.readAsBinaryString(file);
-                },
-                toggleSelectAll() {
-                    if (this.isAllSelected) {
-                        this.selectedMemberIds = [];
-                    } else {
-                        this.selectedMemberIds = this.members.map(m => m.id);
-                    }
-                },
-                bulkDeleteMembers() {
-                    if (confirm(`Xóa ${this.selectedMemberIds.length} học sinh đã chọn?`)) {
-                        this.members = this.members.filter(m => !this.selectedMemberIds.includes(m.id));
-                        this.selectedMemberIds = [];
-                        this.syncData();
-                    }
-                },
-                isPaid(campaignId, memberId) {
-                    return !!this.paidStatuses[`${campaignId}_${memberId}`];
-                },
-                togglePaidStatus(campaignId, memberId) {
-                    const key = `${campaignId}_${memberId}`;
-                    this.paidStatuses[key] = !this.paidStatuses[key];
-                    this.syncData();
-                },
-                getCampaignCollectedAmount(campaign) {
-                    let count = 0;
-                    this.members.forEach(m => {
-                        if (this.isPaid(campaign.id, m.id)) count++;
-                    });
-                    return count * campaign.amount_per_member;
-                },
-                getPaidCount(campaignId) {
-                    return this.members.filter(m => this.isPaid(campaignId, m.id)).length;
-                },
-                filteredMembersForCampaign(campaignId) {
-                    const filter = this.statusFilter[campaignId] || 'all';
-                    if (filter === 'paid') {
-                        return this.sortedMembers.filter(m => this.isPaid(campaignId, m.id));
-                    } else if (filter === 'unpaid') {
-                        return this.sortedMembers.filter(m => !this.isPaid(campaignId, m.id));
-                    }
-                    return this.sortedMembers;
-                },
+                // Member management
                 openMemberModal(member = null) {
                     if (member) {
                         this.memberForm = { ...member };
@@ -629,14 +529,14 @@
                     this.showAddMemberModal = true;
                 },
                 saveMember() {
-                    if (!this.memberForm.full_name) return;
+                    if (!this.memberForm.full_name.trim()) return;
                     if (this.memberForm.id) {
                         const idx = this.members.findIndex(m => m.id === this.memberForm.id);
                         if (idx !== -1) this.members[idx] = { ...this.memberForm };
                     } else {
                         this.members.push({
                             id: Date.now(),
-                            full_name: this.memberForm.full_name,
+                            full_name: this.memberForm.full_name.trim(),
                             role: this.memberForm.role || 'Thành viên'
                         });
                     }
@@ -644,26 +544,84 @@
                     this.syncData();
                 },
                 deleteMember(id) {
-                    if (confirm('Xóa thành viên này?')) {
+                    if (confirm('Bạn có chắc muốn xóa thành viên này?')) {
                         this.members = this.members.filter(m => m.id !== id);
+                        this.selectedMemberIds = this.selectedMemberIds.filter(mId => mId !== id);
                         this.syncData();
                     }
                 },
+                toggleSelectAll() {
+                    if (this.isAllSelected) {
+                        this.selectedMemberIds = [];
+                    } else {
+                        this.selectedMemberIds = this.members.map(m => m.id);
+                    }
+                },
+                bulkDeleteMembers() {
+                    if (confirm(`Bạn có chắc muốn xóa ${this.selectedMemberIds.length} học sinh đã chọn?`)) {
+                        this.members = this.members.filter(m => !this.selectedMemberIds.includes(m.id));
+                        this.selectedMemberIds = [];
+                        this.syncData();
+                    }
+                },
+                importExcel(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        try {
+                            const bstr = evt.target.result;
+                            const wb = XLSX.read(bstr, { type: 'binary' });
+                            const wsname = wb.SheetNames[0];
+                            const ws = wb.Sheets[wsname];
+                            const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                            
+                            // Lấy danh sách tên từ file Excel
+                            const imported = [];
+                            data.forEach((row, i) => {
+                                if (i === 0 && (row[0] === 'STT' || row[0] === 'Họ và Tên')) return; // Skip header
+                                const name = row[1] || row[0];
+                                if (name && typeof name === 'string' && name.trim()) {
+                                    imported.push({
+                                        id: Date.now() + i,
+                                        full_name: name.trim(),
+                                        role: row[2] || 'Thành viên'
+                                    });
+                                }
+                            });
+                            if (imported.length > 0) {
+                                this.members = imported;
+                                this.syncData();
+                                alert(`Đã nhập thành công ${imported.length} thành viên!`);
+                            }
+                        } catch (err) {
+                            alert("Lỗi đọc file Excel. Vui lòng kiểm tra lại định dạng.");
+                        }
+                    };
+                    reader.readAsBinaryString(file);
+                    e.target.value = '';
+                },
+                // Campaign management
                 openCampaignModal(campaign = null) {
                     if (campaign) {
-                        this.campaignForm = { 
-                            id: campaign.id, 
-                            title: campaign.title, 
+                        this.campaignForm = {
+                            id: campaign.id,
+                            title: campaign.title,
                             amount_per_member: campaign.amount_per_member,
-                            formattedAmount: this.formatNumberWithDots(campaign.amount_per_member)
+                            formattedAmount: this.formatMoney(campaign.amount_per_member)
                         };
                     } else {
                         this.campaignForm = { id: null, title: '', amount_per_member: 0, formattedAmount: '' };
                     }
                     this.showAddCampaignModal = true;
                 },
+                onCampaignAmountInput(e) {
+                    const raw = e.target.value.replace(/\D/g, '');
+                    this.campaignForm.amount_per_member = Number(raw) || 0;
+                    this.campaignForm.formattedAmount = this.formatMoney(raw);
+                },
                 saveCampaign() {
-                    if (!this.campaignForm.title) return;
+                    if (!this.campaignForm.title.trim()) return;
                     if (this.campaignForm.id) {
                         const idx = this.campaigns.findIndex(c => c.id === this.campaignForm.id);
                         if (idx !== -1) {
@@ -674,7 +632,7 @@
                         const newId = Date.now();
                         this.campaigns.push({
                             id: newId,
-                            title: this.campaignForm.title,
+                            title: this.campaignForm.title.trim(),
                             amount_per_member: this.campaignForm.amount_per_member
                         });
                         this.selectedCampaignId = newId;
@@ -683,57 +641,94 @@
                     this.syncData();
                 },
                 deleteCampaign(id) {
-                    if (confirm('Xóa đợt thu này?')) {
+                    if (confirm('Xóa đợt thu này sẽ mất lịch sử thu quỹ tương ứng?')) {
                         this.campaigns = this.campaigns.filter(c => c.id !== id);
+                        delete this.paidStatuses[id];
                         if (this.selectedCampaignId === id) {
                             this.selectedCampaignId = this.campaigns.length > 0 ? this.campaigns[0].id : null;
                         }
                         this.syncData();
                     }
                 },
+                isPaid(campaignId, memberId) {
+                    return !!(this.paidStatuses[campaignId] && this.paidStatuses[campaignId][memberId]);
+                },
+                togglePaidStatus(campaignId, memberId) {
+                    if (!this.paidStatuses[campaignId]) {
+                        this.paidStatuses[campaignId] = {};
+                    }
+                    this.paidStatuses[campaignId][memberId] = !this.paidStatuses[campaignId][memberId];
+                    this.syncData();
+                },
+                getPaidCount(campaignId) {
+                    if (!this.paidStatuses[campaignId]) return 0;
+                    return Object.values(this.paidStatuses[campaignId]).filter(Boolean).length;
+                },
+                getCampaignCollectedAmount(campaign) {
+                    const count = this.getPaidCount(campaign.id);
+                    return count * campaign.amount_per_member;
+                },
+                filteredMembersForCampaign(campaignId) {
+                    const filter = this.statusFilter[campaignId] || 'all';
+                    if (filter === 'paid') {
+                        return this.sortedMembers.filter(m => this.isPaid(campaignId, m.id));
+                    }
+                    if (filter === 'unpaid') {
+                        return this.sortedMembers.filter(m => !this.isPaid(campaignId, m.id));
+                    }
+                    return this.sortedMembers;
+                },
+                // Transaction management
                 openTransModal(trans = null) {
                     if (trans) {
-                        this.transForm = { 
-                            id: trans.id, 
-                            type: trans.type, 
-                            category: trans.category, 
-                            amount: trans.amount, 
-                            formattedAmount: this.formatNumberWithDots(trans.amount), 
-                            description: trans.description 
+                        this.transForm = {
+                            id: trans.id,
+                            type: trans.type,
+                            category: trans.category,
+                            amount: trans.amount,
+                            formattedAmount: this.formatMoney(trans.amount),
+                            description: trans.description
                         };
                     } else {
                         this.transForm = { id: null, type: 'IN', category: '', amount: 0, formattedAmount: '', description: '' };
                     }
                     this.showAddTransModal = true;
                 },
+                onTransAmountInput(e) {
+                    const raw = e.target.value.replace(/\D/g, '');
+                    this.transForm.amount = Number(raw) || 0;
+                    this.transForm.formattedAmount = this.formatMoney(raw);
+                },
                 saveTransaction() {
-                    if (!this.transForm.amount) return;
+                    if (!this.transForm.amount || !this.transForm.category.trim()) return;
                     if (this.transForm.id) {
                         const idx = this.transactions.findIndex(t => t.id === this.transForm.id);
                         if (idx !== -1) {
                             this.transactions[idx] = {
                                 ...this.transactions[idx],
                                 type: this.transForm.type,
-                                category: this.transForm.category || 'Chung',
+                                category: this.transForm.category,
                                 amount: this.transForm.amount,
-                                description: this.transForm.description || ''
+                                description: this.transForm.description
                             };
                         }
                     } else {
+                        const now = new Date();
+                        const timeStr = `${now.toLocaleDateString('vi-VN')} ${now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
                         this.transactions.unshift({
                             id: Date.now(),
+                            created_at: timeStr,
                             type: this.transForm.type,
-                            category: this.transForm.category || 'Chung',
+                            category: this.transForm.category,
                             amount: this.transForm.amount,
-                            description: this.transForm.description || '',
-                            created_at: new Date().toISOString().split('T')[0]
+                            description: this.transForm.description
                         });
                     }
                     this.showAddTransModal = false;
                     this.syncData();
                 },
                 deleteTransaction(id) {
-                    if (confirm('Xóa giao dịch này?')) {
+                    if (confirm('Bạn có chắc muốn xóa giao dịch này?')) {
                         this.transactions = this.transactions.filter(t => t.id !== id);
                         this.syncData();
                     }
