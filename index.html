@@ -353,13 +353,31 @@
         <div id="printable-area" class="p-8 border rounded max-w-2xl mx-auto bg-white">
             <div class="text-center border-b pb-4 mb-4"><h2 class="text-2xl font-bold uppercase">Báo Cáo Thu Chi Quỹ Lớp</h2><p class="text-xs text-gray-400 mt-1">Ngày xuất báo cáo: [[new Date().toLocaleDateString('vi-VN')]]</p></div>
             <table class="w-full text-left border-collapse text-sm mb-6">
-                <thead><tr class="border-b"><th class="py-2">Ngày</th><th class="py-2">Nơi thu / chi</th><th class="py-2 text-right">Số tiền</th></tr></thead>
+                <thead><tr class="border-b"><th class="py-2">Thời gian</th><th class="py-2">Nội dung thu / chi</th><th class="py-2 text-right">Số tiền</th></tr></thead>
                 <tbody>
-                    <tr v-if="!filteredTransactions.length"><td colspan="3" class="py-4 text-center text-gray-500">Chưa phát sinh giao dịch.</td></tr>
-                    <tr v-for="t in filteredTransactions" :key="t.id" class="border-b"><td class="py-2 text-gray-500">[[formatTransactionDate(t)]]</td><td class="py-2">[[t.category]]</td><td class="py-2 text-right font-semibold" :class="t.type==='IN'?'text-green-600':'text-red-600'">[[t.type==='IN'?'+':'-']][[formatMoney(t.amount)]]đ</td></tr>
+                    <tr v-if="!invoiceItems.length"><td colspan="3" class="py-4 text-center text-gray-500">Chưa phát sinh giao dịch.</td></tr>
+
+                    <!-- Các đợt thu quỹ học sinh -->
+                    <tr v-for="c in filteredInvoiceCampaigns" :key="'campaign-'+c.id" class="border-b bg-green-50/40">
+                        <td class="py-2 text-gray-500">[[campaignPeriodLabel(c)]]</td>
+                        <td class="py-2">
+                            <span class="font-medium">[[c.title]]</span>
+                            <span class="text-xs text-gray-500"> (Thu quỹ học sinh: [[getPaidCount(c.id)]]/[[members.length]] người)</span>
+                        </td>
+                        <td class="py-2 text-right font-semibold text-green-600">+[[formatMoney(getCampaignCollectedAmount(c))]]đ</td>
+                    </tr>
+
+                    <!-- Thu ngoài và chi tiêu -->
+                    <tr v-for="t in filteredTransactions" :key="'trans-'+t.id" class="border-b">
+                        <td class="py-2 text-gray-500">[[formatTransactionDate(t)]]</td>
+                        <td class="py-2">[[t.category]]</td>
+                        <td class="py-2 text-right font-semibold" :class="t.type==='IN'?'text-green-600':'text-red-600'">[[t.type==='IN'?'+':'-']][[formatMoney(t.amount)]]đ</td>
+                    </tr>
                 </tbody>
             </table>
             <div class="border-t pt-4 text-right">
+                <p class="text-sm">Tổng thu quỹ học sinh: <span class="font-bold text-green-600">+[[formatMoney(filteredCampaignTotal)]]đ</span></p>
+                <p class="text-sm">Tổng thu ngoài quỹ: <span class="font-bold text-green-600">+[[formatMoney(filteredExternalIn)]]đ</span></p>
                 <p class="text-sm">Tổng thu trong kỳ: <span class="font-bold text-green-600">+[[formatMoney(filteredTotalIn)]]đ</span></p>
                 <p class="text-sm">Tổng chi trong kỳ: <span class="font-bold text-red-600">-[[formatMoney(filteredTotalOut)]]đ</span></p>
                 <p class="text-lg font-bold mt-2">Chênh lệch trong kỳ: [[formatMoney(filteredBalance)]]đ</p>
@@ -560,8 +578,49 @@ createApp({
             });
         },
 
-        filteredTotalIn() {
+        filteredInvoiceCampaigns() {
+            const target = this.filterDate || this.todayString();
+            return this.campaigns.filter(c => {
+                if(this.filterType==='all') return true;
+                const date = this.campaignDateString(c);
+                if(!date) return false;
+                if(this.filterType==='day') return date === target;
+
+                const d = new Date(date + 'T00:00:00');
+                if(Number.isNaN(d.getTime())) return false;
+
+                if(this.filterType==='week') {
+                    const start = new Date(target + 'T00:00:00');
+                    const day = start.getDay();
+                    const diff = day === 0 ? -6 : 1 - day;
+                    start.setDate(start.getDate() + diff);
+                    const end = new Date(start);
+                    end.setDate(start.getDate() + 6);
+                    return d >= start && d <= end;
+                }
+                if(this.filterType==='month') {
+                    const [y,m] = target.split('-').map(Number);
+                    return d.getFullYear() === y && d.getMonth() + 1 === m;
+                }
+                if(this.filterType==='year') return d.getFullYear() === Number(target);
+                return true;
+            });
+        },
+
+        filteredCampaignTotal() {
+            return this.filteredInvoiceCampaigns.reduce((sum,c)=>sum + this.getCampaignCollectedAmount(c),0);
+        },
+
+        filteredExternalIn() {
             return this.filteredTransactions.filter(t=>t.type==='IN').reduce((s,t)=>s+(Number(t.amount)||0),0);
+        },
+
+        invoiceItems() {
+            return [...this.filteredInvoiceCampaigns, ...this.filteredTransactions];
+        },
+
+        filteredTotalIn() {
+            return this.filteredCampaignTotal + this.filteredExternalIn;
         },
 
         filteredTotalOut() {
@@ -1063,6 +1122,32 @@ createApp({
         todayInputDate() {
             const d=new Date();
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        },
+
+        campaignDateString(c) {
+            if(!c) return '';
+            if(c.collection_date) return String(c.collection_date).slice(0,10);
+            if(c.date) return String(c.date).slice(0,10);
+            if(c.created_at) {
+                const match=String(c.created_at).match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+                if(match) return `${match[1]}-${String(match[2]).padStart(2,'0')}-${String(match[3]).padStart(2,'0')}`;
+                const matchVN=String(c.created_at).match(/(\d{1,2})[\/](\d{1,2})[\/](\d{4})/);
+                if(matchVN) return `${matchVN[3]}-${String(matchVN[2]).padStart(2,'0')}-${String(matchVN[1]).padStart(2,'0')}`;
+            }
+            // Các đợt thu cũ dùng Date.now() làm ID, có thể suy ra tháng tạo.
+            if(typeof c.id==='number' && c.id > 100000000000) {
+                const d=new Date(c.id);
+                if(!Number.isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            }
+            return '';
+        },
+
+        campaignPeriodLabel(c) {
+            const date=this.campaignDateString(c);
+            if(!date) return 'Không rõ ngày';
+            const [y,m,d]=date.split('-');
+            if(this.filterType==='day' || this.filterType==='week') return `${d}/${m}/${y}`;
+            return `Tháng ${m}/${y}`;
         },
 
         formatTransactionDate(t) {
