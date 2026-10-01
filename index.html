@@ -118,6 +118,8 @@
         <div class="text-right">
             <span class="block text-xs uppercase text-blue-200">Số Dư Quỹ Hiện Tại</span>
             <span class="text-3xl font-extrabold">[[ formatMoney(summary.balance) ]]đ</span>
+            <span class="block text-xs mt-1" :class="syncStatus.startsWith('🔴') ? 'text-red-200' : syncStatus.startsWith('🟡') ? 'text-yellow-200' : 'text-green-200'">[[ syncStatus ]]</span>
+            <span v-if="syncError" class="block text-[10px] text-red-200 max-w-xs truncate" :title="syncError">[[ syncError ]]</span>
         </div>
     </header>
 
@@ -459,6 +461,9 @@ createApp({
             isSyncing: false,
             syncTimer: null,
             pendingSync: false,
+            pendingPaidUpdates: {},
+            syncStatus: 'Đang kết nối...',
+            syncError: '',
 
         };
     },
@@ -557,15 +562,23 @@ createApp({
         this.loadLocalData();
 
         // Nếu lần lưu trước chưa đồng bộ được Firebase, ưu tiên dữ liệu local và thử đồng bộ lại.
-        if(this.pendingSync) {
+        if(this.pendingSync && Object.keys(this.pendingPaidUpdates).length===0) {
             await this.syncData();
-        } else {
-            await this.fetchDataFromFirebase();
+        } else if(Object.keys(this.pendingPaidUpdates).length) {
+            await this.retryPendingPaidUpdates();
         }
 
-        this.syncTimer=setInterval(() => {
-            if(!this.isSyncing && !this.pendingSync) this.fetchDataFromFirebase();
-        },5000);
+        await this.fetchDataFromFirebase();
+
+        // Kiểm tra dữ liệu Firebase định kỳ để các thiết bị nhìn thấy thay đổi của nhau.
+        this.syncTimer=setInterval(async () => {
+            if(this.isSyncing) return;
+            if(Object.keys(this.pendingPaidUpdates).length) {
+                await this.retryPendingPaidUpdates();
+                if(this.isSyncing || this.pendingSync) return;
+            }
+            if(!this.pendingSync) await this.fetchDataFromFirebase();
+        },3000);
     },
 
     beforeUnmount() {
@@ -605,6 +618,7 @@ createApp({
                     this.paidStatuses=data.paidStatuses && typeof data.paidStatuses==='object' ? data.paidStatuses : {};
                     this.transactions=Array.isArray(data.transactions) ? data.transactions : [];
                     this.pendingSync=!!data.pendingSync;
+                    this.pendingPaidUpdates=data.pendingPaidUpdates && typeof data.pendingPaidUpdates==='object' ? data.pendingPaidUpdates : {};
                     if(this.campaigns.length) this.selectedCampaignId=this.campaigns[0].id;
                     return;
                 } catch(e) {
@@ -616,6 +630,7 @@ createApp({
             this.paidStatuses={};
             this.transactions=[];
             this.pendingSync=false;
+            this.pendingPaidUpdates={};
         },
 
         saveLocalData() {
@@ -624,7 +639,8 @@ createApp({
                 campaigns:this.campaigns,
                 paidStatuses:this.paidStatuses,
                 transactions:this.transactions,
-                pendingSync:this.pendingSync
+                pendingSync:this.pendingSync,
+                pendingPaidUpdates:this.pendingPaidUpdates
             }));
         },
 
@@ -638,59 +654,120 @@ createApp({
                 if(!res.ok) throw new Error('Firebase HTTP '+res.status);
 
                 const data=await res.json();
-                if(!data) return;
+                if(!data) {
+                    this.syncStatus='🟢 Đã đồng bộ';
+                    this.syncError='';
+                    return;
+                }
 
                 if(data.members && data.members.length) this.members=data.members;
                 if(Array.isArray(data.campaigns)) this.campaigns=data.campaigns;
 
-                // Không dùng "|| {}" vì trạng thái rỗng cũng là dữ liệu hợp lệ.
                 if(data.paidStatuses && typeof data.paidStatuses==='object') {
                     this.paidStatuses=data.paidStatuses;
+                } else if(data.paidStatuses === null) {
+                    this.paidStatuses={};
                 }
 
                 if(Array.isArray(data.transactions)) this.transactions=data.transactions;
 
-                if(this.campaigns.length && !this.campaigns.some(c=>c.id===this.selectedCampaignId)) {
+                if(this.campaigns.length && !this.campaigns.some(c=>String(c.id)===String(this.selectedCampaignId))) {
                     this.selectedCampaignId=this.campaigns[0].id;
                 }
 
                 this.pendingSync=false;
+                this.syncStatus='🟢 Đã đồng bộ';
+                this.syncError='';
                 this.saveLocalData();
             } catch(e) {
-                console.log('Sử dụng dữ liệu offline local:',e.message);
+                this.syncStatus='🔴 Chưa đồng bộ';
+                this.syncError=e.message || 'Không kết nối được Firebase';
+                console.error('Lỗi đọc Firebase:',e);
             }
         },
 
         async syncData() {
-            // Đánh dấu thay đổi cục bộ trước khi gửi Firebase. Nếu mạng lỗi, lần mở sau sẽ không lấy dữ liệu cũ ghi đè.
+            // Đồng bộ các nhóm dữ liệu chung cho các thao tác thêm/sửa/xóa.
+            // Trạng thái đóng tiền được xử lý riêng bằng syncPaidStatus() để tránh ghi đè giữa nhiều thiết bị.
             this.pendingSync=true;
             this.saveLocalData();
-
             this.isSyncing=true;
+            this.syncStatus='🟡 Đang đồng bộ...';
+            this.syncError='';
 
             try {
                 const payload={
                     members:this.members,
                     campaigns:this.campaigns,
-                    paidStatuses:this.paidStatuses,
                     transactions:this.transactions
                 };
 
                 const res=await fetch(FIREBASE_URL,{
-                    method:'PUT',
+                    method:'PATCH',
                     headers:{'Content-Type':'application/json'},
                     body:JSON.stringify(payload)
                 });
 
                 if(!res.ok) throw new Error('Firebase HTTP '+res.status);
 
-                // Firebase đã xác nhận lưu thành công.
                 this.pendingSync=false;
+                this.syncStatus='🟢 Đã đồng bộ';
+                this.syncError='';
                 this.saveLocalData();
             } catch(e) {
+                this.syncStatus='🔴 Chưa đồng bộ';
+                this.syncError=e.message || 'Không ghi được Firebase';
                 console.error('Lỗi đồng bộ Firebase:',e);
             } finally {
                 this.isSyncing=false;
+            }
+        },
+
+        async syncPaidStatus(campaignId,memberId,value) {
+            const key=String(campaignId)+'_'+String(memberId);
+            this.pendingPaidUpdates[key]={campaignId,memberId,value:!!value};
+            this.pendingSync=true;
+            this.saveLocalData();
+
+            this.isSyncing=true;
+            this.syncStatus='🟡 Đang lưu trạng thái...';
+            this.syncError='';
+
+            try {
+                const url=FIREBASE_URL.replace(/\.json$/,'')
+                    + '/paidStatuses/' + encodeURIComponent(campaignId)
+                    + '/' + encodeURIComponent(memberId) + '.json';
+
+                const res=await fetch(url,{
+                    method:'PUT',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify(!!value)
+                });
+
+                if(!res.ok) throw new Error('Firebase HTTP '+res.status);
+
+                delete this.pendingPaidUpdates[key];
+                this.pendingSync=Object.keys(this.pendingPaidUpdates).length>0;
+                this.syncStatus=this.pendingSync ? '🟡 Còn dữ liệu chờ đồng bộ' : '🟢 Đã đồng bộ';
+                this.syncError='';
+                this.saveLocalData();
+            } catch(e) {
+                this.pendingSync=true;
+                this.syncStatus='🔴 Chưa đồng bộ';
+                this.syncError=e.message || 'Không ghi được Firebase';
+                this.saveLocalData();
+                console.error('Lỗi lưu trạng thái đóng tiền:',e);
+            } finally {
+                this.isSyncing=false;
+            }
+        },
+
+        async retryPendingPaidUpdates() {
+            const updates=Object.values(this.pendingPaidUpdates);
+            for(const item of updates) {
+                if(this.isSyncing) break;
+                await this.syncPaidStatus(item.campaignId,item.memberId,item.value);
+                if(this.pendingPaidUpdates[String(item.campaignId)+'_'+String(item.memberId)]) break;
             }
         },
 
@@ -841,13 +918,16 @@ createApp({
                 this.paidStatuses[campaignId]={};
             }
 
-            this.paidStatuses[campaignId][memberId]=!this.paidStatuses[campaignId][memberId];
+            const newValue=!this.paidStatuses[campaignId][memberId];
+            this.paidStatuses[campaignId][memberId]=newValue;
 
             // Tạo object mới để Vue theo dõi thay đổi sâu.
             this.paidStatuses={...this.paidStatuses};
+            this.saveLocalData();
 
-            // Lưu ngay và chờ Firebase xác nhận.
-            await this.syncData();
+            // QUAN TRỌNG: chỉ ghi đúng trạng thái của đúng học sinh trong đúng đợt thu.
+            // Không PUT toàn bộ database nên thiết bị khác sẽ không bị ghi đè dữ liệu.
+            await this.syncPaidStatus(campaignId,memberId,newValue);
         },
 
         getPaidCount(campaignId) {
