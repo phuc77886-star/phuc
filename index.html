@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         [v-cloak] { display: none; }
@@ -404,7 +406,19 @@
 </div>
 
 <script>
-const FIREBASE_URL = "https://quan-ly-quy-lop-2285d-default-rtdb.firebaseio.com/data.json";
+const FIREBASE_ROOT_URL = "https://quan-ly-quy-lop-2285d-default-rtdb.firebaseio.com";
+const FIREBASE_URL = FIREBASE_ROOT_URL + "/data.json";
+
+// Firebase SDK chỉ dùng cho kênh realtime. Các thao tác ghi vẫn dùng REST API hiện có.
+let firebaseDatabase = null;
+try {
+    if (window.firebase) {
+        firebase.initializeApp({ databaseURL: FIREBASE_ROOT_URL });
+        firebaseDatabase = firebase.database();
+    }
+} catch (e) {
+    console.error("Không khởi tạo được Firebase realtime:", e);
+}
 const DEFAULT_MEMBERS = [
             { id: 101, full_name: "Nguyễn Đức Tiến", role: "Lớp trưởng" },
             { id: 102, full_name: "Đặng Hồ Quốc Thái", role: "Lớp phó" },
@@ -461,6 +475,7 @@ createApp({
             isSyncing: false,
             syncTimer: null,
             realtimeConnection: null,
+            firebaseValueListener: null,
             pendingSync: false,
             pendingPaidUpdates: {},
             syncStatus: 'Đang kết nối...',
@@ -575,7 +590,7 @@ createApp({
         // không cần liên tục tải toàn bộ dữ liệu mỗi vài giây.
         this.startRealtimeSync();
 
-        // Polling 15 giây chỉ là phương án dự phòng nếu luồng realtime bị gián đoạn.
+        // Kiểm tra REST định kỳ chỉ là phương án dự phòng nếu realtime bị gián đoạn.
         this.syncTimer=setInterval(async () => {
             if(this.isSyncing) return;
             if(Object.keys(this.pendingPaidUpdates).length) {
@@ -583,15 +598,18 @@ createApp({
                 if(this.isSyncing || this.pendingSync) return;
             }
             if(!this.pendingSync) await this.fetchDataFromFirebase();
-        },15000);
+        },10000);
     },
 
     beforeUnmount() {
         if(this.syncTimer) clearInterval(this.syncTimer);
-        if(this.realtimeConnection) {
-            this.realtimeConnection.close();
-            this.realtimeConnection=null;
+        if(this.realtimeConnection && this.firebaseValueListener && firebaseDatabase) {
+            try {
+                firebaseDatabase.ref('data').off('value', this.firebaseValueListener);
+            } catch(e) {}
         }
+        this.realtimeConnection=null;
+        this.firebaseValueListener=null;
     },
 
     methods: {
@@ -654,39 +672,68 @@ createApp({
         },
 
         startRealtimeSync() {
-            if(!('EventSource' in window)) {
-                this.syncStatus='🟡 Đang dùng đồng bộ dự phòng';
+            // Dùng Firebase SDK thay cho EventSource. EventSource với REST stream
+            // của một số cấu hình Realtime Database có thể trả HTTP 400.
+            if(!firebaseDatabase) {
+                this.syncStatus='🟡 Đồng bộ dự phòng';
+                this.syncError='Không khởi tạo được Firebase realtime';
                 return;
             }
-            if(this.realtimeConnection) this.realtimeConnection.close();
 
-            const streamUrl=FIREBASE_URL + (FIREBASE_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
-            const stream=new EventSource(streamUrl);
-            this.realtimeConnection=stream;
+            try {
+                const ref=firebaseDatabase.ref('data');
 
-            const onFirebaseChange=() => {
-                // Để các request ghi hiện tại hoàn tất trước khi tải bản mới nhất.
-                window.setTimeout(() => {
-                    if(!this.isSyncing && !this.pendingSync) this.fetchDataFromFirebase();
-                },200);
-            };
-            stream.addEventListener('put',onFirebaseChange);
-            stream.addEventListener('patch',onFirebaseChange);
-            stream.onopen=() => {
-                if(!this.syncError) this.syncStatus='🟢 Đã kết nối realtime';
-            };
-            stream.onerror=() => {
-                // EventSource tự kết nối lại; polling dự phòng vẫn tiếp tục hoạt động.
-                if(!this.syncError) this.syncStatus='🟡 Đang kết nối lại realtime...';
-            };
+                if(this.firebaseValueListener) {
+                    ref.off('value', this.firebaseValueListener);
+                }
+
+                const listener=(snapshot) => {
+                    const data=snapshot.val();
+                    if(!data || typeof data!=='object') return;
+
+                    // Không để dữ liệu server cũ ghi đè thao tác đang chờ gửi.
+                    if(!this.isSyncing && !this.pendingSync) {
+                        if(data.members && Array.isArray(data.members)) this.members=data.members;
+                        if(Array.isArray(data.campaigns)) this.campaigns=data.campaigns;
+                        if(data.paidStatuses && typeof data.paidStatuses==='object') {
+                            this.paidStatuses=data.paidStatuses;
+                        } else if(data.paidStatuses===null) {
+                            this.paidStatuses={};
+                        }
+                        if(Array.isArray(data.transactions)) this.transactions=data.transactions;
+
+                        if(this.campaigns.length && !this.campaigns.some(c=>String(c.id)===String(this.selectedCampaignId))) {
+                            this.selectedCampaignId=this.campaigns[0].id;
+                        }
+
+                        this.syncStatus='🟢 Realtime đang hoạt động';
+                        this.syncError='';
+                        this.saveLocalData();
+                    }
+                };
+
+                this.firebaseValueListener=listener;
+                this.realtimeConnection=ref;
+                ref.on('value', listener, (error) => {
+                    console.error('Firebase realtime:', error);
+                    this.syncStatus='🔴 Chưa đồng bộ';
+                    this.syncError=error && error.message ? error.message : 'Firebase realtime bị lỗi';
+                });
+            } catch(e) {
+                console.error('Lỗi mở Firebase realtime:',e);
+                this.syncStatus='🔴 Chưa đồng bộ';
+                this.syncError=e.message || 'Không mở được Firebase realtime';
+            }
         },
 
         async fetchDataFromFirebase() {
             if(this.isSyncing || this.pendingSync) return;
 
             try {
-                const res=await fetch(FIREBASE_URL + '?t=' + Date.now(), {
-                    cache:'no-store'
+                const res=await fetch(FIREBASE_URL, {
+                    method:'GET',
+                    cache:'no-store',
+                    headers:{'Cache-Control':'no-cache'}
                 });
                 if(!res.ok) throw new Error('Firebase HTTP '+res.status);
 
@@ -968,8 +1015,16 @@ createApp({
         },
 
         getPaidCount(campaignId) {
-            if(!this.paidStatuses[campaignId]) return 0;
-            return Object.values(this.paidStatuses[campaignId]).filter(Boolean).length;
+            // Chỉ đếm những mã học sinh thực sự còn nằm trong danh sách hiện tại.
+            // Tránh trường hợp Firebase còn trạng thái của học sinh đã xóa/import lại
+            // làm số đã đóng lớn hơn tổng số thành viên.
+            const status=this.paidStatuses[campaignId];
+            if(!status || typeof status!=='object') return 0;
+
+            const memberIds=new Set(this.members.map(m=>String(m.id)));
+            return Object.entries(status).filter(([memberId,paid]) =>
+                paid === true && memberIds.has(String(memberId))
+            ).length;
         },
 
         getCampaignCollectedAmount(campaign) {
